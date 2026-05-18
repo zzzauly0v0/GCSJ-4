@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:gcsj}
+    username: ${DB_USER:gcsj}
+    password: ${DB_PASSWORD:gcsj123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.spatial.dialect.postgis.PostgisPGDialect
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+    com.gcsj.disaster: INFO
+  file:
+    name: /app/logs/disaster-backend.log

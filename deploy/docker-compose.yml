@@ -1,0 +1,79 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: gcsj-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gcsj
+      POSTGRES_USER: gcsj
+      POSTGRES_PASSWORD: gcsj123
+      TZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - gcsj-pgdata:/var/lib/postgresql/data
+      - ../data/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    networks: [gcsj-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gcsj -d gcsj"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.24.2
+    container_name: gcsj-geoserver
+    restart: unless-stopped
+    environment:
+      GEOSERVER_ADMIN_USER: admin
+      GEOSERVER_ADMIN_PASSWORD: gcsj123
+      INSTALL_EXTENSIONS: "true"
+      STABLE_EXTENSIONS: "ysld,wps"
+    ports:
+      - "8600:8080"
+    volumes:
+      - gcsj-gsdata:/opt/geoserver_data
+      - ../gis/styles:/opt/geoserver_data/styles:ro
+    networks: [gcsj-net]
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: gcsj-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gcsj
+      SPRING_DATASOURCE_USERNAME: gcsj
+      SPRING_DATASOURCE_PASSWORD: gcsj123
+      WEATHER_API_KEY: ${WEATHER_API_KEY:-demo-key}
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m -Duser.timezone=UTC"
+    ports:
+      - "8085:8085"
+    networks: [gcsj-net]
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: gcsj-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks: [gcsj-net]
+
+networks:
+  gcsj-net:
+    driver: bridge
+
+volumes:
+  gcsj-pgdata:
+  gcsj-gsdata:

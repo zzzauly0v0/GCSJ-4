@@ -1,0 +1,36 @@
+{
+  "name": "gcsj-disaster-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "GCSJ-4 气象地质灾害监测预警管理系统 - 前端",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "lint": "eslint --ext .js,.vue src",
+    "lint:fix": "eslint --ext .js,.vue src --fix"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@stomp/stompjs": "^7.0.0",
+    "axios": "^1.6.8",
+    "dayjs": "^1.11.11",
+    "echarts": "^5.5.0",
+    "element-plus": "^2.7.0",
+    "ol": "^9.1.0",
+    "pinia": "^2.1.7",
+    "sockjs-client": "^1.6.1",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "eslint": "^8.57.0",
+    "eslint-plugin-vue": "^9.24.0",
+    "sass": "^1.75.0",
+    "unplugin-auto-import": "^0.17.5",
+    "unplugin-vue-components": "^0.26.0",
+    "vite": "^5.2.0"
+  }
+}

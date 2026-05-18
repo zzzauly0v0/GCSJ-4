@@ -1,0 +1,36 @@
+# 仅启动数据库 (适合本地用 IDE / mvnw 跑后端的开发场景)
+# 用法:
+#   docker compose -f deploy/docker-compose.db.yml up -d
+#   docker compose -f deploy/docker-compose.db.yml logs -f
+#   docker compose -f deploy/docker-compose.db.yml down       # 停止 (保留数据)
+#   docker compose -f deploy/docker-compose.db.yml down -v    # 停止并清空数据卷
+
+version: "3.9"
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: gcsj-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gcsj
+      POSTGRES_USER: gcsj
+      POSTGRES_PASSWORD: gcsj123
+      TZ: UTC
+      # 镜像启动脚本会基于这两个变量自动 CREATE EXTENSION postgis
+      POSTGIS_VERSION: "3.4"
+    ports:
+      - "5432:5432"
+    volumes:
+      - gcsj-pgdata:/var/lib/postgresql/data
+      # 仅在数据卷为空 (首次启动) 时执行, 自动建表 + 灌种子数据
+      - ../data/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gcsj -d gcsj"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  gcsj-pgdata:

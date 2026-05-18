@@ -1,0 +1,47 @@
+spring:
+  profiles:
+    active: dev
+  application:
+    name: gcsj-disaster-backend
+  jackson:
+    time-zone: UTC
+    date-format: yyyy-MM-dd'T'HH:mm:ss.SSSXXX
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+server:
+  port: 8085
+  servlet:
+    context-path: /
+
+# 自定义配置
+gcsj:
+  jwt:
+    secret: gcsj-please-change-me-in-prod-this-should-be-at-least-32-bytes-long
+    expire-minutes: 720       # 12h
+    header: Authorization
+    prefix: "Bearer "
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+      - http://localhost
+      - http://127.0.0.1:5173
+  weather:
+    api-url: ${WEATHER_API_URL:http://mock.weather.api/v1/observation}
+    api-key: ${WEATHER_API_KEY:demo-key}
+    enabled: false             # 默认关闭, 生产配真实 key 再开
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics

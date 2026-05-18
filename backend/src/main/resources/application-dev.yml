@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/gcsj
+    username: gcsj
+    password: gcsj123
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate         # 由 init.sql 建表, 这里只校验
+    properties:
+      hibernate:
+#        dialect: org.hibernate.spatial.dialect.postgis.PostgisPGDialect
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+    show-sql: false
+  websocket:
+    allowed-origins: "*"
+
+logging:
+  level:
+    root: INFO
+    com.gcsj.disaster: DEBUG
+    org.hibernate.SQL: INFO
