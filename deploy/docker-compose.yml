@@ -9,7 +9,7 @@ services:
       POSTGRES_DB: gcsj
       POSTGRES_USER: gcsj
       POSTGRES_PASSWORD: gcsj123
-      TZ: UTC
+      TZ: Asia/Shanghai
     ports:
       - "5432:5432"
     volumes:

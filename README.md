@@ -24,7 +24,7 @@
 
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![PostGIS](https://img.shields.io/badge/PostGIS-3.4-336791?style=flat-square&logo=postgresql&logoColor=white)
-![GeoServer](https://img.shields.io/badge/GeoServer-2.x-7BAE3F?style=flat-square&logo=geode&logoColor=white)
+![GeoServer](https://img.shields.io/badge/GeoServer-2.24.2-7BAE3F?style=flat-square&logo=geode&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
 </div>
