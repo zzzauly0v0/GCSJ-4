@@ -1,75 +1,201 @@
 /*
- * main.scss — Legacy compatibility shim (Aurora light theme)
+ * main.scss — Legacy compatibility shim
  *
- * 旧版页面（DisasterView / AlertView / LayerView / PlanView / system/* 等）
- * 还在用 .gcsj-card / .gcsj-page / .dash-panel 这些遗留类，
- * 这里把它们与遗留 token 对齐到 Aurora 学术云蓝（白底）主题。
+ * This file is kept for backward compatibility with components that still
+ * reference old class names (.gcsj-card, .gcsj-page, etc.).
+ * All legacy light-theme tokens are remapped to STORMWATCH dark system tokens.
  *
- * 仅保留实际仍在使用的类与 token；未使用的已清理。
+ * DO NOT add new styles here. Use src/styles/theme.css for design tokens,
+ * and component-scoped styles for component-specific rules.
  */
 
-/* Remap legacy tokens (仅保留实际还有人用的) → Aurora 白底 token */
+/* Remap legacy tokens to STORMWATCH tokens */
 :root {
-  /* 背景 / 边框 */
-  --bg:           var(--au-bg-page);
-  --bg-soft:      var(--au-bg-subtle);
-  --border:       var(--au-border-subtle);
-  --border-soft:  var(--au-border-subtle);
+  /* Legacy alert colors → remapped to fluorescent storm variants */
+  --alert-blue: var(--level-1-color);
+  --alert-yellow: var(--level-2-color);
+  --alert-orange: var(--level-3-color);
+  --alert-red: var(--level-4-color);
 
-  /* 文字层级 */
-  --text-1:       var(--au-text-strong);
-  --text-2:       var(--au-text-primary);
-  --text-3:       var(--au-text-secondary);
+  /* 【已删除】--bg, --bg-soft, --panel, --panel-soft 等黑夜/控制台背景变量映射 */
+  --border: var(--border-panel);
+  --border-soft: var(--border-separator);
 
-  /* 主色 */
-  --primary:      var(--au-info);
-  --primary-soft: var(--au-info-soft);
-  --primary-deep: #1D4ED8;
+  /* Legacy text tokens */
+  --text-1: var(--text-primary);
+  --text-2: var(--text-secondary);
+  --text-3: var(--text-tertiary);
+  --text-4: var(--text-disabled);
+
+  /* Legacy primary → crystal blue */
+  --primary: var(--signal-crystal);
+  --primary-soft: var(--signal-crystal-dim);
+  --primary-deep: #00B8CC;
+  --accent: #3fb950;
+  --accent-soft: rgba(63, 185, 80, 0.12);
+
+  /* Legacy dash tokens */
+  --dash-border: var(--border-panel);
+  --dash-text-1: var(--text-primary);
+  --dash-text-2: var(--text-secondary);
+  --dash-text-3: var(--text-tertiary);
+  --dash-accent: var(--signal-crystal);
+
+  /* 【已删除】--shadow 相关的黑色/发光阴影变量 */
 }
 
 /* ================================================================
- * .gcsj-page / .gcsj-card — 白底学术风卡片
+ * LEGACY COMPONENT CLASSES
+ * Remapped to use STORMWATCH tokens
  * ================================================================ */
+
 .gcsj-page {
-  padding: 16px;
-  background: transparent;
+  padding: 14px;
   min-height: 100%;
-  color: var(--au-text-primary);
+  /* 【已删除】background: var(--bg-console); */
 }
 
 .gcsj-card {
-  background: var(--au-bg-surface);
-  border: 1px solid var(--au-border-subtle);
-  border-radius: var(--au-radius-lg);
-  box-shadow: var(--au-shadow-sm);
-  clip-path: none;
-  color: var(--au-text-primary);
+  border: 1px solid var(--border-panel);
+  border-radius: 2px;
+  /* 【已删除】background, box-shadow, clip-path (去除了黑色切角和暗色面板背景) */
+}
+
+.gcsj-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-separator);
+
+  .title {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--signal-crystal);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &::before {
+      content: '';
+      width: 2px;
+      height: 12px;
+      background: var(--signal-crystal);
+      box-shadow: 0 0 6px var(--signal-crystal);
+    }
+  }
+}
+
+.gcsj-card-body {
+  padding: 14px 16px;
+}
+
+/* ================================================================
+ * LEGACY DASH PANEL CLASSES
+ * ================================================================ */
+.dash-root {
+  position: relative;
+  color: var(--text-primary);
+  min-height: 100%;
   overflow: hidden;
 }
 
-/* ================================================================
- * .dash-panel — LoginView / NotFoundView 仍在用
- * ================================================================ */
 .dash-panel {
   position: relative;
-  background: var(--au-bg-surface);
-  border: 1px solid var(--au-border-subtle);
-  border-radius: var(--au-radius-lg);
-  box-shadow: var(--au-shadow-sm);
-  color: var(--au-text-primary);
+  border: 1px solid var(--border-panel);
+  border-radius: 2px;
+  /* 【已删除】background, box-shadow */
 }
 
-/* ================================================================
- * 工具类
- * ================================================================ */
+/* Remove legacy decorative corners (replaced by CSS clip-path) */
+.dash-panel::before,
+.dash-panel::after,
+.dash-panel .corner-bl,
+.dash-panel .corner-br {
+  display: none !important;
+}
+
+.dash-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--signal-crystal);
+  border-bottom: 1px solid var(--border-separator);
+  /* 【已删除】background: linear-gradient(...) 蓝黑渐变色 */
+
+  .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--signal-crystal);
+    box-shadow: 0 0 5px var(--signal-crystal);
+    animation: led-pulse 2400ms ease-in-out infinite;
+    animation-delay: 1400ms;
+  }
+
+  .extra {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+  }
+}
+
+/* STORMWATCH scrollbar (replaces legacy dash-scroll) */
+.dash-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.dash-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 0;
+}
+
+.dash-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.dash-scroll::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+/* Monospace number utility */
 .num-mono {
-  font-family: var(--au-font-num) !important;
+  font-family: var(--font-mono) !important;
   font-weight: 600;
-  font-feature-settings: var(--au-font-feat);
+  font-feature-settings: "tnum" 1;
 }
 
-/* 国标预警等级文字色（白底版本） */
-.lvl-1 { color: #3B82F6; }
-.lvl-2 { color: #F59E0B; }
-.lvl-3 { color: #F97316; }
-.lvl-4 { color: #DC2626; }
+/* Alert level tags — redirect to STORMWATCH token classes */
+.lvl-tag {
+  /* defined in globals.css */
+}
+
+.lvl-1 {
+  color: var(--level-1-color);
+}
+
+.lvl-2 {
+  color: var(--level-2-color);
+}
+
+.lvl-3 {
+  color: var(--level-3-color);
+}
+
+.lvl-4 {
+  color: var(--level-4-color);
+}
