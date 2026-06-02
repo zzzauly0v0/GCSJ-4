@@ -63,7 +63,7 @@
               <span v-if="row.longitude != null" class="meta-item">
                 <el-icon><Location /></el-icon>{{ row.longitude.toFixed(3) }}, {{ row.latitude.toFixed(3) }}
               </span>
-              <span class="meta-item"><el-icon><Promotion /></el-icon>{{ row.channels || 'in_site' }}</span>
+              <span class="meta-item"><el-icon><Promotion /></el-icon>{{ (row.channels || []).join(' / ') || 'in_site' }}</span>
             </div>
           </div>
           <div class="alert-status">

@@ -5,15 +5,14 @@ import com.gcsj.disaster.common.ErrorCode;
 import com.gcsj.disaster.domain.converter.AlertConverter;
 import com.gcsj.disaster.domain.dto.CreateAlertDTO;
 import com.gcsj.disaster.domain.entity.Alert;
-import com.gcsj.disaster.domain.entity.AlertRule;
-import com.gcsj.disaster.domain.entity.Observation;
-import com.gcsj.disaster.domain.entity.Sensor;
+import com.gcsj.disaster.domain.entity.DisasterEvent;
 import com.gcsj.disaster.domain.event.AlertTriggeredEvent;
 import com.gcsj.disaster.domain.vo.AlertVO;
 import com.gcsj.disaster.repository.AlertRepository;
-import com.gcsj.disaster.repository.SensorRepository;
+import com.gcsj.disaster.repository.DisasterEventRepository;
 import com.gcsj.disaster.service.IAlertService;
 import com.gcsj.disaster.utils.GeometryUtil;
+import com.gcsj.disaster.utils.SecurityContextUtil;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,7 +31,7 @@ import java.util.*;
 public class AlertServiceImpl implements IAlertService {
 
     private final AlertRepository alertRepository;
-    private final SensorRepository sensorRepository;
+    private final DisasterEventRepository disasterEventRepository;
     private final AlertConverter alertConverter;
     private final ApplicationEventPublisher publisher;
 
@@ -46,9 +45,8 @@ public class AlertServiceImpl implements IAlertService {
         a.setTitle(dto.getTitle());
         a.setContent(dto.getContent());
         a.setLevel(dto.getLevel());
-        a.setRuleId(dto.getRuleId());
-        a.setSensorId(dto.getSensorId());
         a.setEventId(dto.getEventId());
+        a.setSource(dto.getSource() != null ? dto.getSource() : "manual");
         if (dto.getLongitude() != null && dto.getLatitude() != null) {
             a.setLocation(GeometryUtil.point(dto.getLongitude(), dto.getLatitude()));
         }
@@ -69,6 +67,8 @@ public class AlertServiceImpl implements IAlertService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ALERT_NOT_FOUND));
         a.setStatus((short) 3);
         a.setConfirmedAt(OffsetDateTime.now());
+        SecurityContextUtil.AuthUser u = SecurityContextUtil.currentOrNull();
+        if (u != null) a.setConfirmedById(u.userId());
         alertRepository.save(a);
         return alertConverter.toVO(a);
     }
@@ -90,12 +90,17 @@ public class AlertServiceImpl implements IAlertService {
     }
 
     @Override
-    public Page<AlertVO> page(Short level, Short status, Pageable pageable) {
+    public Page<AlertVO> page(String keyword, Short level, Short status, Long eventId, Pageable pageable) {
         Specification<Alert> spec = (root, q, cb) -> {
             List<Predicate> ps = new ArrayList<>();
             ps.add(cb.isFalse(root.get("deleted")));
             if (level != null) ps.add(cb.equal(root.get("level"), level));
             if (status != null) ps.add(cb.equal(root.get("status"), status));
+            if (eventId != null) ps.add(cb.equal(root.get("eventId"), eventId));
+            if (keyword != null && !keyword.isBlank()) {
+                String like = "%" + keyword + "%";
+                ps.add(cb.or(cb.like(root.get("title"), like), cb.like(root.get("code"), like)));
+            }
             return cb.and(ps.toArray(new Predicate[0]));
         };
         return alertRepository.findAll(spec, pageable).map(alertConverter::toVO);
@@ -117,6 +122,7 @@ public class AlertServiceImpl implements IAlertService {
             props.put("title", a.getTitle());
             props.put("level", a.getLevel());
             props.put("status", a.getStatus());
+            props.put("source", a.getSource());
             props.put("triggeredAt", a.getTriggeredAt());
             features.add(GeometryUtil.toFeature(a.getId(), a.getLocation(), props));
         }
@@ -125,22 +131,24 @@ public class AlertServiceImpl implements IAlertService {
 
     @Override
     @Transactional
-    public Alert createFromRule(AlertRule rule, Observation observation) {
+    public AlertVO createFromEvent(Long eventId, Short level, String title, String content, List<String> channels) {
+        DisasterEvent e = disasterEventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DISASTER_EVENT_NOT_FOUND));
         Alert a = new Alert();
         a.setCode(genCode());
-        a.setTitle("[%s] %s 触发 %s".formatted(rule.getName(), rule.getIndicator(), rule.getThreshold()));
-        a.setContent("观测值=%s 阈值=%s 操作符=%s".formatted(observation.getValue(), rule.getThreshold(), rule.getOperator()));
-        a.setLevel(rule.getLevel());
-        a.setRuleId(rule.getId());
-        a.setSensorId(observation.getSensorId());
-        Optional<Sensor> sensor = sensorRepository.findById(observation.getSensorId());
-        sensor.ifPresent(s -> a.setLocation(s.getLocation()));
-        a.setChannels("in_site");
+        a.setTitle(title != null && !title.isBlank() ? title : e.getTitle() + " 预警");
+        a.setContent(content != null && !content.isBlank() ? content : e.getDescription());
+        a.setLevel(level != null ? level : e.getLevel());
+        a.setEventId(e.getId());
+        a.setSource("event");
+        a.setLocation(e.getLocation());
+        List<String> ch = channels == null || channels.isEmpty() ? List.of("in_site") : channels;
+        a.setChannels(String.join(",", ch));
         a.setStatus((short) 1);
         a.setTriggeredAt(OffsetDateTime.now());
         alertRepository.save(a);
-        publisher.publishEvent(new AlertTriggeredEvent(this, a, List.of("in_site")));
-        return a;
+        publisher.publishEvent(new AlertTriggeredEvent(this, a, ch));
+        return alertConverter.toVO(a);
     }
 
     private String genCode() {

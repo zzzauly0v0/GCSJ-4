@@ -47,7 +47,7 @@
           <span class="tip-item" @click="quickFill('admin')">admin</span>
           <span class="tip-item" @click="quickFill('operator')">operator</span>
           <span class="tip-item" @click="quickFill('viewer')">viewer</span>
-          <span class="tip-pwd">/ admin123</span>
+          <span class="tip-pwd">/ 123456</span>
         </div>
       </div>
     </div>
@@ -77,7 +77,7 @@ const userStore = useUserStore()
 
 const formRef = ref()
 const loading = ref(false)
-const form = reactive({ username: 'admin', password: 'admin123' })
+const form = reactive({ username: 'admin', password: '123456' })
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
@@ -88,7 +88,7 @@ let timer = null
 
 function quickFill(u) {
   form.username = u
-  form.password = 'admin123'
+  form.password = '123456'
 }
 
 async function onSubmit() {

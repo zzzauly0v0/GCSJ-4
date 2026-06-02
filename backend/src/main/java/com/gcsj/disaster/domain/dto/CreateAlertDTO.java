@@ -13,9 +13,11 @@ public class CreateAlertDTO {
     @NotNull
     @Min(1) @Max(4)
     private Short level;
-    private Long ruleId;
-    private Long sensorId;
+    /** 关联灾害事件 id (可空, 手动发布时填) */
     private Long eventId;
+    /** 来源: manual / event / external (默认 manual) */
+    @Pattern(regexp = "manual|event|external")
+    private String source;
     private Double longitude;
     private Double latitude;
     /** 推送通道: in_site / sms / email */

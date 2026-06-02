@@ -30,9 +30,6 @@ public class User extends BaseEntity {
     @Column(length = 256)
     private String avatar;
 
-    @Column(name = "org_id")
-    private Long orgId;
-
     @Column(nullable = false)
     private Short status = 1;
 

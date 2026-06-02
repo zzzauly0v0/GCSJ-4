@@ -29,10 +29,11 @@ public class DisasterEventController {
     @GetMapping
     public Result<PageResult<DisasterEventVO>> page(@RequestParam(required = false) Short level,
                                                     @RequestParam(required = false) String type,
+                                                    @RequestParam(required = false) Short status,
                                                     @RequestParam(defaultValue = "1") int page,
                                                     @RequestParam(defaultValue = "10") int size) {
         Pageable pg = PageRequest.of(Math.max(0, page - 1), size, Sort.by(Sort.Direction.DESC, "occurredAt"));
-        return Result.ok(PageResult.from(disasterEventService.page(level, type, pg), v -> v));
+        return Result.ok(PageResult.from(disasterEventService.page(level, type, status, pg), v -> v));
     }
 
     @Operation(summary = "事件详情")
@@ -51,6 +52,12 @@ public class DisasterEventController {
     @PutMapping("/{id}")
     public Result<DisasterEventVO> update(@PathVariable Long id, @Valid @RequestBody CreateDisasterEventDTO dto) {
         return Result.ok(disasterEventService.update(id, dto));
+    }
+
+    @Operation(summary = "变更状态 (1 进行中 / 2 处置中 / 3 已结束)")
+    @PatchMapping("/{id}/status")
+    public Result<DisasterEventVO> changeStatus(@PathVariable Long id, @RequestParam Short status) {
+        return Result.ok(disasterEventService.changeStatus(id, status));
     }
 
     @Operation(summary = "删除灾害事件")

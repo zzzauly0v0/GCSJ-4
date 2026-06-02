@@ -20,12 +20,11 @@ public class Alert extends BaseEntity {
     private String content;
     @Column(nullable = false)
     private Short level;
-    @Column(name = "rule_id")
-    private Long ruleId;
-    @Column(name = "sensor_id")
-    private Long sensorId;
     @Column(name = "event_id")
     private Long eventId;
+    /** 来源: manual / event / external */
+    @Column(length = 64)
+    private String source;
     @Column(columnDefinition = "geometry(Point, 4326)")
     private Point location;
     @Column(length = 128)
@@ -38,4 +37,6 @@ public class Alert extends BaseEntity {
     private OffsetDateTime sentAt;
     @Column(name = "confirmed_at")
     private OffsetDateTime confirmedAt;
+    @Column(name = "confirmed_by_id")
+    private Long confirmedById;
 }

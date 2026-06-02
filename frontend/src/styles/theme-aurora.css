@@ -1,0 +1,559 @@
+/*
+ * Aurora — Academic Research Platform Theme
+ * 学术云蓝主题：白底 + 浅蓝紫青渐变 + 渐变边框 + 卡片柔和阴影
+ *
+ * 全局接管: token 挂在 :root，并强制 html/body/#app 为白底，
+ * 关闭原 stormwatch 的扫描线、暗背景、网格、启动序列。
+ */
+
+:root {
+  /* ============================================================
+   * BACKGROUND — 白 / 极浅蓝灰
+   * ============================================================ */
+  --au-bg-page:        #F4F7FB;
+  --au-bg-surface:     #FFFFFF;
+  --au-bg-subtle:      #F8FAFD;
+  --au-bg-hover:       #EEF2F8;
+  --au-bg-inset:       #F1F4F9;
+
+  /* ============================================================
+   * GRADIENT — 学术云蓝主梯度
+   * 在 hero / 按钮 / 数字 / 边框上反复使用，建立视觉连续
+   * ============================================================ */
+  --au-grad-hero:      linear-gradient(135deg, #EEF2FF 0%, #DBEAFE 45%, #E0F2FE 100%);
+  --au-grad-hero-deep: linear-gradient(135deg, #C7D2FE 0%, #93C5FD 50%, #67E8F9 100%);
+  --au-grad-primary:   linear-gradient(135deg, #4F46E5 0%, #2563EB 50%, #06B6D4 100%);
+  --au-grad-soft:      linear-gradient(135deg, #818CF8 0%, #60A5FA 50%, #22D3EE 100%);
+  --au-grad-border:    linear-gradient(135deg, #818CF8 0%, #38BDF8 100%);
+  --au-grad-border-strong: linear-gradient(135deg, #6366F1 0%, #2563EB 50%, #06B6D4 100%);
+  --au-grad-data:      linear-gradient(90deg, #2563EB 0%, #06B6D4 100%);
+
+  /* ============================================================
+   * TEXT
+   * ============================================================ */
+  --au-text-strong:    #0F172A;     /* 标题 */
+  --au-text-primary:   #1E293B;     /* 正文 */
+  --au-text-secondary: #475569;     /* 次要 */
+  --au-text-tertiary:  #94A3B8;     /* 辅助 / 标签 */
+  --au-text-on-grad:   #1E1B4B;     /* hero 渐变上的文字 */
+  --au-text-link:      #2563EB;
+  --au-text-data:      #1D4ED8;     /* 数字读数主色 */
+
+  /* ============================================================
+   * BORDER
+   * ============================================================ */
+  --au-border-subtle:  #E2E8F0;
+  --au-border-base:    #CBD5E1;
+  --au-border-focus:   #6366F1;
+
+  /* ============================================================
+   * STATUS — 学术规范配色
+   * ============================================================ */
+  --au-success:        #10B981;
+  --au-success-soft:   #D1FAE5;
+  --au-warning:        #F59E0B;
+  --au-warning-soft:   #FEF3C7;
+  --au-danger:         #EF4444;
+  --au-danger-soft:    #FEE2E2;
+  --au-info:           #2563EB;
+  --au-info-soft:      #DBEAFE;
+
+  /* 国标预警等级 — 在白底下用饱和度更稳的版本 */
+  --au-level-1:        #2563EB;     /* 蓝 */
+  --au-level-2:        #F59E0B;     /* 黄 */
+  --au-level-3:        #F97316;     /* 橙 */
+  --au-level-4:        #DC2626;     /* 红 */
+
+  /* ============================================================
+   * SHADOW — 学术柔和阴影
+   * ============================================================ */
+  --au-shadow-xs:  0 1px 2px rgba(15, 23, 42, 0.04);
+  --au-shadow-sm:  0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --au-shadow-md:  0 4px 12px rgba(30, 64, 175, 0.06), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --au-shadow-lg:  0 10px 30px rgba(30, 64, 175, 0.08), 0 4px 8px rgba(15, 23, 42, 0.04);
+  --au-shadow-blue: 0 8px 24px rgba(37, 99, 235, 0.12);
+  --au-shadow-glow: 0 0 0 4px rgba(99, 102, 241, 0.10);
+
+  /* ============================================================
+   * RADIUS / SPACING / TYPOGRAPHY
+   * ============================================================ */
+  --au-radius-sm: 8px;
+  --au-radius-md: 12px;
+  --au-radius-lg: 16px;
+  --au-radius-xl: 22px;
+
+  --au-font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --au-font-display: 'Space Grotesk', 'Inter', 'PingFang SC', sans-serif;
+  --au-font-num:  'Inter', 'JetBrains Mono', ui-monospace, monospace;
+  --au-font-feat: 'tnum' 1, 'cv02' 1, 'cv11' 1;
+
+  /* 字号（统一放大一档，更具美术气息） */
+  --au-fs-display: 36px;   /* hero 主标题 */
+  --au-fs-h1:      26px;
+  --au-fs-h2:      20px;
+  --au-fs-h3:      17px;
+  --au-fs-base:    15px;   /* 正文 */
+  --au-fs-sm:      13px;
+  --au-fs-xs:      12px;
+  --au-fs-kpi:     38px;   /* KPI 主数字 */
+  --au-fs-num:     22px;   /* 中等数字读数 */
+
+  /* ============================================================
+   * MOTION
+   * ============================================================ */
+  --au-ease:       cubic-bezier(0.22, 1, 0.36, 1);
+  --au-dur-fast:   140ms;
+  --au-dur-base:   220ms;
+  --au-dur-slow:   400ms;
+}
+
+/* ============================================================
+ * 全局接管 — 强制白底，覆盖原 stormwatch 暗色基底
+ * ============================================================ */
+html, body {
+  background: var(--au-bg-page) !important;
+  color: var(--au-text-primary) !important;
+  font-family: var(--au-font-sans) !important;
+  font-size: var(--au-fs-base);
+  font-feature-settings: var(--au-font-feat);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  background: var(--au-bg-page);
+  color: var(--au-text-primary);
+  font-family: var(--au-font-sans);
+}
+
+/* 关闭原 stormwatch 扫描线、网格、闪烁、启动序列动效 */
+.console-bg {
+  background-image: none !important;
+  background-color: var(--au-bg-page) !important;
+}
+.live-scanline::before,
+.live-scanline::after {
+  display: none !important;
+}
+.boot-overlay { display: none !important; }
+.led, .sigil-ring, .sigil-core, .sys-sigil { animation: none !important; }
+
+/* 学术风滚动条（全局） */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #C7D2FE, #A5B4FC);
+  border-radius: 999px;
+  border: 2px solid var(--au-bg-page);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #818CF8, #6366F1);
+}
+
+/* 兼容旧 .aurora-theme 类（已不必要，但保留不报错） */
+.aurora-theme { background: var(--au-bg-page); color: var(--au-text-primary); }
+
+/* ============================================================
+ * UTILITY — 渐变边框 / 渐变文字 / 渐变填充
+ * ============================================================ */
+
+/* 渐变边框（双层背景实现，圆角内白外渐变） */
+.au-grad-border {
+  position: relative;
+  background: var(--au-bg-surface);
+  border-radius: var(--au-radius-md);
+}
+.au-grad-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: var(--au-grad-border);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  transition: opacity var(--au-dur-base) var(--au-ease);
+}
+.au-grad-border.au-strong::before {
+  background: var(--au-grad-border-strong);
+  padding: 2px;
+}
+.au-grad-border:hover::before {
+  background: var(--au-grad-border-strong);
+}
+
+/* 渐变文字 */
+.au-grad-text {
+  background: var(--au-grad-primary);
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  font-feature-settings: var(--au-font-feat);
+}
+
+/* 渐变 chip / pill */
+.au-pill-grad {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #FFFFFF;
+  background: var(--au-grad-primary);
+  border-radius: 999px;
+  box-shadow: var(--au-shadow-blue);
+}
+
+/* hero 渐变区块 */
+.au-hero {
+  background: var(--au-grad-hero);
+  border: 1px solid #E0E7FF;
+  border-radius: var(--au-radius-lg);
+  box-shadow: var(--au-shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+.au-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(800px 200px at 90% -20%, rgba(99,102,241,0.18), transparent 60%),
+    radial-gradient(600px 180px at 0% 110%, rgba(6,182,212,0.16), transparent 60%);
+}
+
+/* ============================================================
+ * Element Plus 学术风覆盖（!important 强压旧 stormwatch 暗色样式）
+ * ============================================================ */
+:root {
+  --el-color-primary:           #2563EB;
+  --el-color-primary-light-3:   #3B82F6;
+  --el-color-primary-light-5:   #60A5FA;
+  --el-color-primary-light-7:   #93C5FD;
+  --el-color-primary-light-8:   #BFDBFE;
+  --el-color-primary-light-9:   #DBEAFE;
+  --el-color-success:           #10B981;
+  --el-color-warning:           #F59E0B;
+  --el-color-danger:            #EF4444;
+  --el-color-info:              #6366F1;
+
+  --el-bg-color:                #FFFFFF;
+  --el-bg-color-page:           #F4F7FB;
+  --el-bg-color-overlay:        #FFFFFF;
+
+  --el-text-color-primary:      #0F172A;
+  --el-text-color-regular:      #1E293B;
+  --el-text-color-secondary:    #475569;
+  --el-text-color-placeholder:  #94A3B8;
+  --el-text-color-disabled:     #CBD5E1;
+
+  --el-border-color:            #E2E8F0;
+  --el-border-color-light:      #E2E8F0;
+  --el-border-color-lighter:    #EDF2F7;
+  --el-border-color-extra-light:#F1F5F9;
+  --el-border-color-dark:       #CBD5E1;
+  --el-border-color-darker:     #94A3B8;
+  --el-border-radius-base:      10px;
+  --el-border-radius-small:     8px;
+
+  --el-fill-color:              #F8FAFD;
+  --el-fill-color-light:        #F4F7FB;
+  --el-fill-color-lighter:      #FAFBFC;
+  --el-fill-color-blank:        #FFFFFF;
+  --el-fill-color-darker:       #EEF2F8;
+
+  --el-box-shadow:              0 10px 30px rgba(30,64,175,0.08), 0 4px 8px rgba(15,23,42,0.04);
+  --el-box-shadow-light:        0 4px 12px rgba(30,64,175,0.06);
+  --el-box-shadow-lighter:      0 1px 3px rgba(15,23,42,0.06);
+
+  --el-font-family:             var(--au-font-sans);
+  --el-font-size-base:          14px;
+
+  --el-table-border-color:      #E2E8F0;
+  --el-table-bg-color:          #FFFFFF;
+  --el-table-tr-bg-color:       #FFFFFF;
+  --el-table-current-row-bg-color: #EEF2FF;
+  --el-table-row-hover-bg-color:#F8FAFD;
+  --el-table-header-bg-color:   #F4F7FB;
+  --el-table-header-text-color: #475569;
+
+  --el-input-bg-color:          #FFFFFF;
+  --el-input-border-color:      #E2E8F0;
+  --el-input-hover-border-color:#C7D2FE;
+  --el-input-focus-border-color:#6366F1;
+}
+
+/* 强制覆盖 globals.css 里写死的 !important 暗色 */
+.el-menu {
+  background-color: transparent !important;
+  border-right: none !important;
+}
+.el-menu-item,
+.el-sub-menu__title {
+  font-family: var(--au-font-sans) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  color: var(--au-text-primary) !important;
+  border-radius: 10px !important;
+}
+.el-menu-item:hover,
+.el-sub-menu__title:hover {
+  background: var(--au-bg-hover) !important;
+  color: var(--au-info) !important;
+}
+.el-menu-item.is-active {
+  background: linear-gradient(90deg, rgba(99,102,241,0.10), rgba(6,182,212,0.04)) !important;
+  color: var(--au-info) !important;
+  border-left: 3px solid var(--au-info) !important;
+}
+
+.el-table {
+  --el-table-border-color: #E2E8F0;
+  background: #FFFFFF !important;
+  color: var(--au-text-primary) !important;
+  border-radius: var(--au-radius-md);
+  overflow: hidden;
+  box-shadow: var(--au-shadow-sm);
+}
+.el-table th.el-table__cell {
+  font-family: var(--au-font-sans) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  background: #F4F7FB !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+.el-table td.el-table__cell {
+  font-family: var(--au-font-sans) !important;
+  font-size: 13px !important;
+  color: var(--au-text-primary) !important;
+  border-bottom: 1px solid #F1F5F9 !important;
+  background: #FFFFFF !important;
+}
+.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
+  background: #F8FAFD !important;
+}
+
+.el-button {
+  font-family: var(--au-font-sans) !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  border-radius: var(--au-radius-md) !important;
+  font-size: 13px !important;
+  padding: 8px 16px !important;
+  height: auto !important;
+  transition: all var(--au-dur-base) var(--au-ease) !important;
+}
+.el-button--primary {
+  background: var(--au-grad-primary) !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  box-shadow: var(--au-shadow-blue) !important;
+}
+.el-button--primary:hover {
+  filter: brightness(1.05) !important;
+  box-shadow: 0 10px 24px rgba(37,99,235,0.22) !important;
+  transform: translateY(-1px);
+}
+.el-button--danger {
+  background: linear-gradient(135deg, #F87171, #DC2626) !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 8px 20px rgba(220,38,38,0.18) !important;
+}
+.el-button--warning {
+  background: linear-gradient(135deg, #FBBF24, #F59E0B) !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 8px 20px rgba(245,158,11,0.18) !important;
+}
+.el-button--success {
+  background: linear-gradient(135deg, #34D399, #10B981) !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 8px 20px rgba(16,185,129,0.18) !important;
+}
+.el-button--default {
+  background: #FFFFFF !important;
+  border: 1px solid var(--au-border-base) !important;
+  color: var(--au-text-primary) !important;
+}
+.el-button--default:hover {
+  background: var(--au-bg-hover) !important;
+  border-color: #C7D2FE !important;
+  color: var(--au-info) !important;
+}
+
+.el-input__wrapper {
+  background: #FFFFFF !important;
+  box-shadow: 0 0 0 1px var(--au-border-base) !important;
+  border-radius: var(--au-radius-md) !important;
+  padding: 1px 12px !important;
+  transition: box-shadow var(--au-dur-base) var(--au-ease) !important;
+}
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px #C7D2FE !important;
+}
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1.5px var(--au-info), var(--au-shadow-glow) !important;
+}
+.el-input__inner {
+  color: var(--au-text-primary) !important;
+  font-size: 14px !important;
+  height: 36px !important;
+}
+
+.el-dialog {
+  background: #FFFFFF !important;
+  border: none !important;
+  border-radius: var(--au-radius-lg) !important;
+  box-shadow: 0 25px 60px rgba(15,23,42,0.18) !important;
+  backdrop-filter: none !important;
+  overflow: hidden;
+}
+.el-dialog__header {
+  background: var(--au-grad-hero);
+  border-bottom: 1px solid #E0E7FF !important;
+  padding: 18px 24px !important;
+  margin: 0 !important;
+}
+.el-dialog__title {
+  font-family: var(--au-font-display) !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
+  text-transform: none !important;
+  color: var(--au-text-strong) !important;
+}
+.el-dialog__body { padding: 22px 24px !important; }
+.el-dialog__footer {
+  border-top: 1px solid var(--au-border-subtle) !important;
+  padding: 14px 24px !important;
+}
+
+.el-tag {
+  font-family: var(--au-font-sans) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border-radius: 999px !important;
+  letter-spacing: normal !important;
+  padding: 0 10px !important;
+  height: 24px !important;
+  line-height: 22px !important;
+}
+.el-tag--info { background: #EEF2FF !important; color: #4338CA !important; border-color: #C7D2FE !important; }
+.el-tag--success { background: #D1FAE5 !important; color: #047857 !important; border-color: #6EE7B7 !important; }
+.el-tag--warning { background: #FEF3C7 !important; color: #B45309 !important; border-color: #FDE68A !important; }
+.el-tag--danger  { background: #FEE2E2 !important; color: #B91C1C !important; border-color: #FCA5A5 !important; }
+
+.el-loading-mask {
+  background: rgba(244,247,251,0.75) !important;
+  backdrop-filter: blur(4px);
+}
+.el-loading-spinner .circular { display: inline-block !important; }
+.el-loading-spinner::before { content: none !important; }
+.el-loading-spinner .el-loading-text {
+  font-family: var(--au-font-sans) !important;
+  color: var(--au-info) !important;
+  letter-spacing: normal !important;
+  font-size: 13px !important;
+  animation: none !important;
+}
+.el-loading-spinner .path { stroke: var(--au-info) !important; }
+
+.el-pagination {
+  font-family: var(--au-font-sans) !important;
+  font-size: 13px !important;
+  color: var(--au-text-primary) !important;
+}
+.el-pagination.is-background .el-pager li {
+  background: #FFFFFF !important;
+  color: var(--au-text-primary) !important;
+  border: 1px solid var(--au-border-subtle) !important;
+  border-radius: var(--au-radius-sm) !important;
+}
+.el-pagination.is-background .el-pager li.is-active {
+  background: var(--au-grad-primary) !important;
+  color: #FFFFFF !important;
+  border: none !important;
+}
+
+.el-select-dropdown,
+.el-dropdown-menu,
+.au-dropdown-popper .el-dropdown-menu {
+  background: #FFFFFF !important;
+  border: 1px solid var(--au-border-subtle) !important;
+  border-radius: var(--au-radius-md) !important;
+  box-shadow: var(--au-shadow-lg) !important;
+  backdrop-filter: none !important;
+  padding: 4px !important;
+}
+.el-dropdown-menu__item {
+  font-family: var(--au-font-sans) !important;
+  font-size: 13px !important;
+  color: var(--au-text-primary) !important;
+  letter-spacing: normal !important;
+  border-radius: var(--au-radius-sm) !important;
+  padding: 8px 12px !important;
+}
+.el-dropdown-menu__item:hover {
+  background: var(--au-bg-hover) !important;
+  color: var(--au-info) !important;
+}
+.el-select-dropdown__item.selected {
+  color: var(--au-info) !important;
+  background: var(--au-info-soft) !important;
+  font-weight: 600;
+}
+
+.el-card {
+  background: #FFFFFF !important;
+  border: 1px solid var(--au-border-subtle) !important;
+  border-radius: var(--au-radius-lg) !important;
+  box-shadow: var(--au-shadow-sm) !important;
+  color: var(--au-text-primary) !important;
+}
+.el-card__header {
+  border-bottom: 1px solid var(--au-border-subtle) !important;
+  padding: 16px 20px !important;
+  font-weight: 600 !important;
+  color: var(--au-text-strong) !important;
+}
+
+.el-message-box {
+  background: #FFFFFF !important;
+  border: none !important;
+  border-radius: var(--au-radius-lg) !important;
+  box-shadow: 0 25px 60px rgba(15,23,42,0.18) !important;
+}
+.el-message-box__title { color: var(--au-text-strong) !important; }
+.el-message-box__content { color: var(--au-text-primary) !important; }
+
+/* 全局 panel 类（旧 stormwatch 引用）也压成白卡 */
+.panel, .panel-cut {
+  background: #FFFFFF !important;
+  border: 1px solid var(--au-border-subtle) !important;
+  border-radius: var(--au-radius-lg) !important;
+  box-shadow: var(--au-shadow-sm) !important;
+  clip-path: none !important;
+  color: var(--au-text-primary) !important;
+}
+.panel::before, .panel-cut::before { display: none !important; }

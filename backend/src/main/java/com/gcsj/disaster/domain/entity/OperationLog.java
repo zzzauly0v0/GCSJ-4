@@ -29,8 +29,6 @@ public class OperationLog {
     private String uri;
     @Column(length = 64)
     private String ip;
-    @Column(columnDefinition = "text")
-    private String params;
     @Column(name = "result_code")
     private Integer resultCode;
     @Column(name = "cost_ms")

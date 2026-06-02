@@ -34,14 +34,26 @@ public class AlertController {
         return Result.ok(alertService.create(dto));
     }
 
+    @Operation(summary = "从灾害事件挂起预警 (source=event, 自动取事件 location/level)")
+    @PostMapping("/from-event/{eventId}")
+    public Result<AlertVO> createFromEvent(@PathVariable Long eventId,
+                                           @RequestParam(required = false) Short level,
+                                           @RequestParam(required = false) String title,
+                                           @RequestParam(required = false) String content,
+                                           @RequestParam(required = false) List<String> channels) {
+        return Result.ok(alertService.createFromEvent(eventId, level, title, content, channels));
+    }
+
     @Operation(summary = "分页查询预警")
     @GetMapping
-    public Result<PageResult<AlertVO>> page(@RequestParam(required = false) Short level,
+    public Result<PageResult<AlertVO>> page(@RequestParam(required = false) String keyword,
+                                            @RequestParam(required = false) Short level,
                                             @RequestParam(required = false) Short status,
+                                            @RequestParam(required = false) Long eventId,
                                             @RequestParam(defaultValue = "1") int page,
                                             @RequestParam(defaultValue = "10") int size) {
         Pageable pg = PageRequest.of(Math.max(0, page - 1), size, Sort.by(Sort.Direction.DESC, "triggeredAt"));
-        return Result.ok(PageResult.from(alertService.page(level, status, pg), v -> v));
+        return Result.ok(PageResult.from(alertService.page(keyword, level, status, eventId, pg), v -> v));
     }
 
     @Operation(summary = "预警详情")

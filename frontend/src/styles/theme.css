@@ -1,0 +1,188 @@
+/*
+ * GCSJ STORMWATCH — Design System Token File
+ * theme.css — All CSS custom properties (design tokens)
+ *
+ * Governance: every color, spacing, shadow, glow, timing value
+ * in the entire application MUST reference a variable from this file.
+ * Hard-coded hex values in components are FORBIDDEN.
+ */
+
+:root {
+
+  /* ================================================================
+   * BACKGROUND LAYERS — Console dark tones
+   * ================================================================ */
+  --bg-void:           #040608;          /* deepest black — body root */
+  --bg-console:        #0A0E1A;          /* main console surface */
+  --bg-panel:          #0F1622;          /* panel background */
+  --bg-panel-elevated: #162032;          /* elevated / hover state */
+  --bg-panel-deep:     #0C121E;          /* inset / well surfaces */
+  --bg-overlay:        rgba(10, 14, 26, 0.92); /* modal / popover */
+
+  /* ================================================================
+   * BORDER & GRID
+   * ================================================================ */
+  --border-grid:       rgba(0, 229, 255, 0.10);   /* latitude/longitude grid overlay */
+  --border-panel:      rgba(0, 229, 255, 0.18);   /* panel borders */
+  --border-active:     rgba(0, 229, 255, 0.55);   /* active / focused border */
+  --border-separator:  rgba(0, 229, 255, 0.07);   /* divider lines */
+  --border-critical:   rgba(255, 45, 45, 0.55);   /* red-level alert border */
+  --border-warning:    rgba(255, 106, 26, 0.55);  /* orange-level alert border */
+
+  /* ================================================================
+   * SIGNAL COLORS — Warning palette (fluorescent, high-penetration)
+   * Use ONLY with purpose; never for decorative fill.
+   * ================================================================ */
+
+  /* Lava Orange — red/orange level alerts, critical state */
+  --signal-lava:       #FF6A1A;
+  --signal-lava-dim:   rgba(255, 106, 26, 0.20);
+  --signal-lava-glow:  rgba(255, 106, 26, 0.40);
+  --signal-lava-hot:   #FF8C42;
+
+  /* Hazard Yellow — yellow level warnings, data highlights */
+  --signal-hazard:     #FFD60A;
+  --signal-hazard-dim: rgba(255, 214, 10, 0.15);
+  --signal-hazard-glow:rgba(255, 214, 10, 0.35);
+
+  /* Crystal Blue — normal monitoring, data streams, scan lines */
+  --signal-crystal:    #00E5FF;
+  --signal-crystal-dim:rgba(0, 229, 255, 0.12);
+  --signal-crystal-glow:rgba(0, 229, 255, 0.35);
+  --signal-crystal-ice: #7DF9FF;
+
+  /* Alert Red — critical/red-level warnings ONLY */
+  --signal-alert:      #FF2D2D;
+  --signal-alert-dim:  rgba(255, 45, 45, 0.18);
+  --signal-alert-glow: rgba(255, 45, 45, 0.45);
+
+  /* Alert Blue — low-level / info (蓝色预警) */
+  --signal-blue:       #3B8BF0;
+  --signal-blue-dim:   rgba(59, 139, 240, 0.15);
+
+  /* Plasma Magenta — secondary accent (second emphasis layer) */
+  --signal-plasma:     #D63AF9;
+  --signal-plasma-dim: rgba(214, 58, 249, 0.12);
+
+  /* ================================================================
+   * NATIONAL-STANDARD WARNING LEVEL TOKENS
+   * Maps to physical warning levels; uses fluorescent variants
+   * ================================================================ */
+  --level-1-color:     var(--signal-blue);       /* 蓝色预警 */
+  --level-1-dim:       var(--signal-blue-dim);
+  --level-2-color:     var(--signal-hazard);     /* 黄色预警 */
+  --level-2-dim:       var(--signal-hazard-dim);
+  --level-3-color:     var(--signal-lava);       /* 橙色预警 */
+  --level-3-dim:       var(--signal-lava-dim);
+  --level-4-color:     var(--signal-alert);      /* 红色预警 */
+  --level-4-dim:       var(--signal-alert-dim);
+
+  /* ================================================================
+   * TEXT
+   * ================================================================ */
+  --text-primary:      #E6F1FF;    /* main body copy — verified ≥4.5:1 on --bg-console */
+  --text-secondary:    #7D9BB8;    /* secondary info */
+  --text-tertiary:     #3D5A73;    /* muted labels */
+  --text-data:         #7DF9FF;    /* data values, coordinates, sensor readings */
+  --text-data-hot:     #00E5FF;    /* highlighted data value */
+  --text-label:        #5A7A94;    /* axis labels, metadata */
+  --text-disabled:     #2A3D52;
+
+  /* ================================================================
+   * TYPOGRAPHY — Font stacks (NEVER use system-ui / Arial for data)
+   * ================================================================ */
+  --font-mono:    'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', 'Roboto Mono',
+                   ui-monospace, 'Cascadia Code', monospace;
+  --font-display: 'Orbitron', 'Rajdhani', 'Michroma', 'Saira Condensed',
+                   'Bebas Neue', sans-serif;
+  --font-ui:      'Rajdhani', 'Noto Sans SC', 'Source Han Sans SC',
+                   'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  /* ================================================================
+   * SHADOWS & GLOW EFFECTS
+   * ================================================================ */
+  --glow-crystal:   0 0 12px rgba(0, 229, 255, 0.55),
+                    0 0 28px rgba(0, 229, 255, 0.25),
+                    0 0 56px rgba(0, 229, 255, 0.10);
+  --glow-lava:      0 0 12px rgba(255, 106, 26, 0.55),
+                    0 0 28px rgba(255, 106, 26, 0.25);
+  --glow-alert:     0 0 12px rgba(255, 45, 45, 0.65),
+                    0 0 28px rgba(255, 45, 45, 0.30);
+  --glow-hazard:    0 0 10px rgba(255, 214, 10, 0.50),
+                    0 0 22px rgba(255, 214, 10, 0.20);
+  --glow-panel:     0 0 0 1px var(--border-panel),
+                    0 4px 32px rgba(0, 0, 0, 0.60),
+                    inset 0 1px 0 rgba(0, 229, 255, 0.06);
+  --glow-panel-active: 0 0 0 1px var(--border-active),
+                       0 4px 40px rgba(0, 229, 255, 0.12),
+                       inset 0 1px 0 rgba(0, 229, 255, 0.10);
+
+  /* ================================================================
+   * SPACING & LAYOUT
+   * ================================================================ */
+  --space-xs:   4px;
+  --space-sm:   8px;
+  --space-md:   14px;
+  --space-lg:   20px;
+  --space-xl:   28px;
+  --space-2xl:  40px;
+
+  --panel-radius:   2px;   /* Industrial: almost no rounding */
+  --panel-radius-sm: 1px;
+  --clip-corner:    8px;   /* for clip-path cut corners */
+
+  /* ================================================================
+   * GRID & NOISE BACKGROUND PARAMETERS
+   * ================================================================ */
+  --grid-size:       48px;   /* lat/lon grid cell */
+  --grid-opacity:    0.06;   /* grid overlay base opacity */
+  --noise-opacity:   0.025;  /* SVG noise texture opacity */
+
+  /* ================================================================
+   * ANIMATION — Durations & Easing
+   * ================================================================ */
+
+  /* Timing curves */
+  --ease-power-on:  cubic-bezier(0.16, 1, 0.3, 1);    /* mechanical snap-in */
+  --ease-scan:      cubic-bezier(0.4, 0, 0.6, 1);      /* scan sweep */
+  --ease-terminal:  steps(8, end);                      /* typewriter steps */
+  --ease-data:      cubic-bezier(0.25, 0.46, 0.45, 0.94); /* data counter */
+
+  /* Phase durations — boot sequence */
+  --dur-phase1:     300ms;   /* grid sweep */
+  --dur-phase2:     400ms;   /* basemap reveal */
+  --dur-phase3:     500ms;   /* panel cascade */
+  --dur-phase4-in:  300ms;   /* individual panel entry */
+  --dur-blink:      1200ms;  /* LED blink cycle */
+  --dur-pulse:      2400ms;  /* alert pulse cycle */
+  --dur-scan:       4000ms;  /* scanline full-height sweep */
+  --dur-radar:      6000ms;  /* radar rotation period */
+
+  /* ================================================================
+   * SCROLLBAR
+   * ================================================================ */
+  --scrollbar-track:  rgba(0, 229, 255, 0.04);
+  --scrollbar-thumb:  rgba(0, 229, 255, 0.20);
+  --scrollbar-thumb-hover: rgba(0, 229, 255, 0.38);
+}
+
+/* ================================================================
+ * REDUCED MOTION — static fallback
+ * ================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-phase1: 0ms;
+    --dur-phase2: 0ms;
+    --dur-phase3: 0ms;
+    --dur-phase4-in: 0ms;
+    --dur-blink: 0ms;
+    --dur-pulse: 0ms;
+    --dur-scan: 0ms;
+    --dur-radar: 0ms;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

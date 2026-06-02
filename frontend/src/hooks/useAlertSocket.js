@@ -8,7 +8,6 @@ export function useAlertSocket(onAlert) {
   const ws = useWS()
   const alertStore = useAlertStore()
   let unsubAlerts = null
-  let unsubObservations = null
 
   onMounted(async () => {
     try {
@@ -24,9 +23,6 @@ export function useAlertSocket(onAlert) {
         })
         if (typeof onAlert === 'function') onAlert(alert)
       })
-      unsubObservations = ws.subscribe('/topic/observations', (_obs) => {
-        // 默认不弹窗, 由调用方按需扩展
-      })
     } catch (e) {
       // ignore: WS 不可用不阻塞
       console.warn('WebSocket connect failed:', e)
@@ -35,6 +31,5 @@ export function useAlertSocket(onAlert) {
 
   onBeforeUnmount(() => {
     if (unsubAlerts) unsubAlerts()
-    if (unsubObservations) unsubObservations()
   })
 }

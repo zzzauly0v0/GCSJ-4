@@ -28,10 +28,6 @@ gcsj:
       - http://localhost:5173
       - http://localhost
       - http://127.0.0.1:5173
-  weather:
-    api-url: ${WEATHER_API_URL:http://mock.weather.api/v1/observation}
-    api-key: ${WEATHER_API_KEY:demo-key}
-    enabled: false             # 默认关闭, 生产配真实 key 再开
 
 springdoc:
   api-docs:

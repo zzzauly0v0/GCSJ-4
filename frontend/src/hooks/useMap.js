@@ -1,11 +1,17 @@
 /**
  * OpenLayers 初始化 hook
- * 存储 EPSG:4326 → 显示 EPSG:3857, 由 ol/proj 自动转换
+ *
+ * 数据流:
+ *   存储 EPSG:4326 → 显示 EPSG:3857, 由 ol/proj 自动转换
+ *
+ * 图层来源:
+ *   底图 + 业务图层均来自后端 gis_layer 表 (apiLayerList)
+ *   - 底图: code 以 base_ 开头, type=xyz, 直接用 source_url 模板
+ *   - 业务: code 以 biz_ 开头, type=vector, 由调用方通过 loadGeoJson(code, geojson) 灌数据
+ *   注册表中的 visible / z_index 决定初始可见性与叠放顺序
  *
  * 视觉:
- *   - 暗色底图 (Carto Dark, 兜底 OSM)
- *   - 传感器: 绿色发光小点
- *   - 预警:   按等级配色, 红色带脉冲动画
+ *   - 预警:   按等级配色, 高等级 (>=3) 带脉冲动画
  *   - 灾害:   半透明等级色多边形
  */
 import { onMounted, onBeforeUnmount, ref } from 'vue'
@@ -23,110 +29,123 @@ import { Style, Circle as CircleStyle, Stroke, Fill, Text, RegularShape } from '
 
 const ALERT_COLOR = { 1: '#3B82F6', 2: '#FBBF24', 3: '#F97316', 4: '#EF4444' }
 
+function hexA(hex, a) {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r},${g},${b},${a})`
+}
+
+function buildAlertStyle(feat) {
+  const level = feat.get('level') || 1
+  const color = ALERT_COLOR[level]
+  const radius = 6 + level * 2
+  return [
+    new Style({
+      image: new CircleStyle({
+        radius: radius + 8,
+        fill: new Fill({ color: hexA(color, 0.15) })
+      })
+    }),
+    new Style({
+      image: new CircleStyle({
+        radius,
+        fill: new Fill({ color }),
+        stroke: new Stroke({ color: '#fff', width: 2 })
+      })
+    })
+  ]
+}
+
+function buildDisasterStyle(feat) {
+  const level = feat.get('level') || 1
+  const color = ALERT_COLOR[level]
+  return new Style({
+    stroke: new Stroke({ color, width: 2, lineDash: [6, 4] }),
+    fill: new Fill({ color: hexA(color, 0.18) }),
+    image: new RegularShape({
+      points: 4,
+      radius: 8,
+      angle: Math.PI / 4,
+      fill: new Fill({ color }),
+      stroke: new Stroke({ color: '#fff', width: 1.5 })
+    })
+  })
+}
+
+function defaultVectorStyle() {
+  return new Style({
+    image: new CircleStyle({
+      radius: 4,
+      fill: new Fill({ color: '#0EA5E9' }),
+      stroke: new Stroke({ color: '#fff', width: 1 })
+    })
+  })
+}
+
+// 业务图层 code → 渲染样式映射
+const VECTOR_STYLE_REGISTRY = {
+  biz_alerts:   buildAlertStyle,
+  biz_events:   buildDisasterStyle,
+  biz_disasters: buildDisasterStyle  // 向后兼容旧 code
+}
+
 export function useMap(target, options = {}) {
   const map = ref(null)
-  const layers = {}
+  const olLayers = {}            // code → ol/layer 实例
+  const layerMeta = {}            // code → 注册表原始记录 (visible / zIndex / sourceUrl)
 
-  function buildBaseLayer() {
-    const tileUrl = import.meta.env.VITE_MAP_TILE_URL
-    // 优先暗色底图 (CartoDB dark_all, 公开瓦片)
-    const darkUrl = 'https://{a-d}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-    if (tileUrl && tileUrl.includes('cartocdn')) {
-      return new Tile({ source: new XYZ({ url: tileUrl, crossOrigin: 'anonymous' }), opacity: 0.95 })
-    }
-    if (tileUrl && !tileUrl.includes('openstreetmap')) {
-      return new Tile({ source: new XYZ({ url: tileUrl, crossOrigin: 'anonymous' }), opacity: 0.95 })
-    }
-    // 默认走暗色 (兜底 OSM)
+  /* ---------- URL 模板替换: tk / 环境变量占位 ---------- */
+  function resolveTileUrl(rawUrl) {
+    if (!rawUrl) return ''
+    return rawUrl.replace(/\$\{(VITE_[A-Z0-9_]+)\}/g, (_, key) => {
+      const v = import.meta.env[key]
+      return v == null ? '' : v
+    })
+  }
+
+  /* ---------- 底图构造 ---------- */
+  function buildTileLayer(meta) {
+    const url = resolveTileUrl(meta.sourceUrl)
+    const tile = new Tile({
+      source: new XYZ({ url, crossOrigin: 'anonymous' }),
+      visible: !!meta.visible,
+      zIndex: meta.zIndex ?? 0,
+      opacity: 0.95
+    })
+    // 加载失败 (天地图 tk 缺失等) 兜底走 OSM
+    tile.getSource().on('tileloaderror', () => {
+      tile.setSource(new OSM({ crossOrigin: 'anonymous' }))
+    })
+    return tile
+  }
+
+  /* ---------- 业务图层构造 ---------- */
+  function buildVectorLayer(meta) {
+    const styleFn = VECTOR_STYLE_REGISTRY[meta.code] || defaultVectorStyle
+    return new VectorLayer({
+      source: new VectorSource(),
+      style: styleFn,
+      visible: !!meta.visible,
+      zIndex: meta.zIndex ?? 10
+    })
+  }
+
+  /* ---------- 默认底图 (注册表为空时兜底) ---------- */
+  function defaultOsmLayer() {
     return new Tile({
-      source: new XYZ({ url: darkUrl, crossOrigin: 'anonymous', attributions: '© OpenStreetMap · © CARTO' }),
-      opacity: 0.92
+      source: new OSM({ crossOrigin: 'anonymous' }),
+      zIndex: 0,
+      opacity: 0.95
     })
   }
 
-  function fallbackToOSM(layer) {
-    layer.setSource(new OSM({ crossOrigin: 'anonymous' }))
-  }
-
-  /* ---------- 样式 ---------- */
-  function buildSensorStyle(feat) {
-    return [
-      new Style({
-        image: new CircleStyle({
-          radius: 8,
-          fill: new Fill({ color: 'rgba(34,197,94,0.15)' }),
-          stroke: new Stroke({ color: 'rgba(34,197,94,0)', width: 0 })
-        })
-      }),
-      new Style({
-        image: new CircleStyle({
-          radius: 4,
-          fill: new Fill({ color: '#22C55E' }),
-          stroke: new Stroke({ color: '#fff', width: 1 })
-        }),
-        text: new Text({
-          text: feat.get('name') || '',
-          offsetY: -14,
-          font: '500 10px PingFang SC, sans-serif',
-          fill: new Fill({ color: '#E2E8F0' }),
-          stroke: new Stroke({ color: 'rgba(15, 28, 60, 0.85)', width: 3 })
-        })
-      })
-    ]
-  }
-
-  function buildAlertStyle(feat) {
-    const level = feat.get('level') || 1
-    const color = ALERT_COLOR[level]
-    const radius = 6 + level * 2
-    return [
-      // 外圈光晕
-      new Style({
-        image: new CircleStyle({
-          radius: radius + 8,
-          fill: new Fill({ color: hexA(color, 0.15) })
-        })
-      }),
-      // 主点
-      new Style({
-        image: new CircleStyle({
-          radius,
-          fill: new Fill({ color }),
-          stroke: new Stroke({ color: '#fff', width: 2 })
-        })
-      })
-    ]
-  }
-
-  function buildDisasterStyle(feat) {
-    const level = feat.get('level') || 1
-    const color = ALERT_COLOR[level]
-    return new Style({
-      stroke: new Stroke({ color, width: 2, lineDash: [6, 4] }),
-      fill: new Fill({ color: hexA(color, 0.18) }),
-      image: new RegularShape({
-        points: 4,
-        radius: 8,
-        angle: Math.PI / 4,
-        fill: new Fill({ color }),
-        stroke: new Stroke({ color: '#fff', width: 1.5 })
-      })
-    })
-  }
-
-  function hexA(hex, a) {
-    const h = hex.replace('#', '')
-    const r = parseInt(h.slice(0, 2), 16)
-    const g = parseInt(h.slice(2, 4), 16)
-    const b = parseInt(h.slice(4, 6), 16)
-    return `rgba(${r},${g},${b},${a})`
-  }
-
-  /* ---------- 脉冲动画 ---------- */
+  /* ---------- 脉冲动画 (alerts 高等级) ---------- */
   let pulseStart = Date.now()
   function pulseStyle(feat) {
     const level = feat.get('level') || 1
-    if (level < 3) return [] // 仅高等级脉冲
+    if (level < 3) return []
     const color = ALERT_COLOR[level]
     const elapsed = (Date.now() - pulseStart) % 1800
     const t = elapsed / 1800
@@ -141,36 +160,51 @@ export function useMap(target, options = {}) {
     })]
   }
 
+  let pulseTimer = null
+  let alertPulseLayer = null
+
   onMounted(() => {
     const center = options.center || [104.0, 35.0]
     const zoom = options.zoom || 5
+    const registry = Array.isArray(options.layerRegistry) ? options.layerRegistry : []
 
-    layers.base = buildBaseLayer()
-    layers.base.getSource().on('tileloaderror', () => fallbackToOSM(layers.base))
+    const olLayerList = []
 
-    layers.sensors = new VectorLayer({
-      source: new VectorSource(),
-      style: buildSensorStyle,
-      zIndex: 10
-    })
-    layers.alerts = new VectorLayer({
-      source: new VectorSource(),
-      style: buildAlertStyle,
-      zIndex: 30
-    })
-    layers.alertPulse = new VectorLayer({
-      source: layers && new VectorSource(),
-      zIndex: 25
-    })
-    layers.disasters = new VectorLayer({
-      source: new VectorSource(),
-      style: buildDisasterStyle,
-      zIndex: 15
-    })
+    if (registry.length === 0) {
+      // 兜底: 注册表为空 (例如未登录 / 接口失败), 给一个 OSM
+      olLayers.base_osm = defaultOsmLayer()
+      olLayerList.push(olLayers.base_osm)
+    } else {
+      for (const meta of registry) {
+        layerMeta[meta.code] = meta
+        let lyr = null
+        if (meta.type === 'xyz' || meta.type === 'wmts') {
+          lyr = buildTileLayer(meta)
+        } else if (meta.type === 'vector') {
+          lyr = buildVectorLayer(meta)
+        } else {
+          // 其它类型 (raster/wms) 暂未实现, 跳过
+          continue
+        }
+        olLayers[meta.code] = lyr
+        olLayerList.push(lyr)
+      }
+    }
+
+    // 预警脉冲层: 共享 alerts 的 source, 单独一个图层叠加
+    if (olLayers.biz_alerts) {
+      alertPulseLayer = new VectorLayer({
+        source: olLayers.biz_alerts.getSource(),
+        style: pulseStyle,
+        zIndex: (layerMeta.biz_alerts?.zIndex ?? 30) - 1,
+        visible: olLayers.biz_alerts.getVisible()
+      })
+      olLayerList.push(alertPulseLayer)
+    }
 
     map.value = new Map({
       target: typeof target === 'string' ? target : target.value,
-      layers: [layers.base, layers.disasters, layers.sensors, layers.alertPulse, layers.alerts],
+      layers: olLayerList,
       view: new View({
         center: fromLonLat(center),
         zoom,
@@ -179,17 +213,11 @@ export function useMap(target, options = {}) {
       controls: []
     })
 
-    // 脉冲层渲染
-    layers.alertPulse.setSource(layers.alerts.getSource())
-    layers.alertPulse.setStyle(pulseStyle)
-
-    // 持续重绘脉冲层 (轻量, 仅 5 fps)
-    pulseTimer = setInterval(() => {
-      if (layers.alertPulse) layers.alertPulse.changed()
-    }, 200)
+    if (alertPulseLayer) {
+      pulseTimer = setInterval(() => alertPulseLayer.changed(), 200)
+    }
   })
 
-  let pulseTimer = null
   onBeforeUnmount(() => {
     if (pulseTimer) clearInterval(pulseTimer)
     if (map.value) {
@@ -198,21 +226,27 @@ export function useMap(target, options = {}) {
     }
   })
 
+  /* ---------- 对外 API ---------- */
   function loadGeoJson(layerKey, geojson) {
-    if (!geojson || !layers[layerKey]) return
+    if (!geojson) return
+    const lyr = olLayers[layerKey] || olLayers[`biz_${layerKey}`]
+    if (!lyr || !lyr.getSource) return
     const fmt = new GeoJSON()
     const feats = fmt.readFeatures(geojson, {
       dataProjection: 'EPSG:4326',
       featureProjection: 'EPSG:3857'
     })
-    const src = layers[layerKey].getSource()
+    const src = lyr.getSource()
     src.clear()
     src.addFeatures(feats)
   }
 
   function setLayerVisible(layerKey, visible) {
-    if (layers[layerKey]) layers[layerKey].setVisible(visible)
-    if (layerKey === 'alerts' && layers.alertPulse) layers.alertPulse.setVisible(visible)
+    const lyr = olLayers[layerKey] || olLayers[`biz_${layerKey}`]
+    if (lyr) lyr.setVisible(visible)
+    if ((layerKey === 'alerts' || layerKey === 'biz_alerts') && alertPulseLayer) {
+      alertPulseLayer.setVisible(visible)
+    }
   }
 
   function flyTo(lon, lat, zoom = 10) {
@@ -221,5 +255,5 @@ export function useMap(target, options = {}) {
     }
   }
 
-  return { map, layers, loadGeoJson, setLayerVisible, flyTo }
+  return { map, layers: olLayers, loadGeoJson, setLayerVisible, flyTo }
 }

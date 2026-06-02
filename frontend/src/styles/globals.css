@@ -1,0 +1,515 @@
+/*
+ * GCSJ STORMWATCH — Global Base Styles
+ * globals.css — Reset, scrollbars, layered backgrounds, Element Plus overrides
+ *
+ * Background layers (bottom → top):
+ *   1. --bg-void base fill
+ *   2. Repeating lat/lon graticule grid (linear-gradient)
+ *   3. Atmospheric radial gradient (top-center haze → edge black)
+ *   4. Heatmap screen-blend blobs (subtle thermal hint)
+ *   5. Vignette inset shadow
+ *   6. Optional: CSS noise via SVG filter (applied on html::before)
+ */
+
+/* ================================================================
+ * RESET & BASE
+ * ================================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: 100%;
+  background: var(--bg-void);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-console);
+}
+
+#app {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+ul, ol { list-style: none; }
+a { color: inherit; text-decoration: none; }
+button { border: none; background: none; cursor: pointer; font: inherit; }
+input, select, textarea { font: inherit; }
+
+/* ================================================================
+ * LAYERED CONSOLE BACKGROUND
+ * Applied to the root console surface — stacked background-image
+ * ================================================================ */
+.console-bg {
+  background-color: var(--bg-console);
+  background-image:
+    /* Layer 5: Vignette */
+    radial-gradient(
+      ellipse 120% 100% at 50% 0%,
+      transparent 40%,
+      rgba(0, 0, 0, 0.55) 100%
+    ),
+    /* Layer 4: Heatmap hint — screen-blend warm blob top-right */
+    radial-gradient(
+      ellipse 35% 30% at 80% 15%,
+      rgba(255, 106, 26, 0.05) 0%,
+      transparent 70%
+    ),
+    /* Layer 3: Atmospheric haze — lighter blue at top-center */
+    radial-gradient(
+      ellipse 80% 50% at 50% 0%,
+      rgba(15, 37, 64, 0.8) 0%,
+      transparent 70%
+    ),
+    /* Layer 2: Longitude grid lines (vertical) */
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent calc(var(--grid-size, 48px) - 1px),
+      rgba(0, 229, 255, 0.06) calc(var(--grid-size, 48px) - 1px),
+      rgba(0, 229, 255, 0.06) var(--grid-size, 48px)
+    ),
+    /* Layer 1: Latitude grid lines (horizontal) */
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent calc(var(--grid-size, 48px) - 1px),
+      rgba(0, 229, 255, 0.06) calc(var(--grid-size, 48px) - 1px),
+      rgba(0, 229, 255, 0.06) var(--grid-size, 48px)
+    );
+  position: relative;
+}
+
+/* ================================================================
+ * INDUSTRIAL SCROLLBARS
+ * ================================================================ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ================================================================
+ * TEXT SELECTION
+ * ================================================================ */
+::selection {
+  background: rgba(0, 229, 255, 0.25);
+  color: var(--text-primary);
+}
+
+/* ================================================================
+ * UTILITY LAYOUT CLASSES
+ * ================================================================ */
+.flex            { display: flex; }
+.flex-col        { display: flex; flex-direction: column; }
+.flex-center     { display: flex; align-items: center; justify-content: center; }
+.flex-between    { display: flex; align-items: center; justify-content: space-between; }
+.flex-1          { flex: 1; min-width: 0; min-height: 0; }
+.gap-4           { gap: 4px; }
+.gap-8           { gap: 8px; }
+.gap-12          { gap: 12px; }
+.gap-16          { gap: 16px; }
+.gap-20          { gap: 20px; }
+.overflow-hidden { overflow: hidden; }
+
+/* ================================================================
+ * PANEL SYSTEM — Industrial clip-path cut-corner panels
+ * ================================================================ */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--glow-panel);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Cut-corner variant (top-right + bottom-left 8px diagonal) */
+.panel-cut {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  box-shadow: var(--glow-panel);
+  position: relative;
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--clip-corner)) 0,
+    100% var(--clip-corner),
+    100% 100%,
+    var(--clip-corner) 100%,
+    0 calc(100% - var(--clip-corner))
+  );
+  overflow: hidden;
+}
+
+.panel-cut::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 229, 255, 0.08) 0%,
+    transparent 30%
+  );
+  z-index: 0;
+}
+
+/* ================================================================
+ * ELEMENT PLUS — Aggressive dark overrides
+ * Targets all EP components to match the console palette.
+ * ================================================================ */
+
+/* Global EP token override */
+:root {
+  --el-color-primary:            var(--signal-crystal);
+  --el-color-primary-light-3:    rgba(0, 229, 255, 0.30);
+  --el-color-primary-light-5:    rgba(0, 229, 255, 0.20);
+  --el-color-primary-light-7:    rgba(0, 229, 255, 0.12);
+  --el-color-primary-light-8:    rgba(0, 229, 255, 0.08);
+  --el-color-primary-light-9:    rgba(0, 229, 255, 0.05);
+  --el-color-primary-dark-2:     #00B8CC;
+
+  --el-bg-color:                 var(--bg-panel);
+  --el-bg-color-page:            var(--bg-console);
+  --el-bg-color-overlay:         var(--bg-overlay);
+
+  --el-text-color-primary:       var(--text-primary);
+  --el-text-color-regular:       var(--text-secondary);
+  --el-text-color-secondary:     var(--text-tertiary);
+  --el-text-color-placeholder:   var(--text-tertiary);
+  --el-text-color-disabled:      var(--text-disabled);
+
+  --el-border-color:             var(--border-panel);
+  --el-border-color-light:       var(--border-separator);
+  --el-border-color-lighter:     var(--border-separator);
+  --el-border-color-extra-light: rgba(0, 229, 255, 0.04);
+  --el-border-color-dark:        var(--border-active);
+  --el-border-color-darker:      rgba(0, 229, 255, 0.40);
+
+  --el-fill-color:               var(--bg-panel-elevated);
+  --el-fill-color-light:         var(--bg-panel);
+  --el-fill-color-lighter:       var(--bg-panel-deep);
+  --el-fill-color-extra-light:   rgba(15, 22, 34, 0.50);
+  --el-fill-color-blank:         transparent;
+  --el-fill-color-dark:          var(--bg-panel-elevated);
+  --el-fill-color-darker:        var(--bg-panel-deep);
+
+  --el-border-radius-base:       2px;
+  --el-border-radius-small:      1px;
+  --el-border-radius-round:      2px;
+  --el-border-radius-circle:     50%;
+
+  --el-box-shadow:               var(--glow-panel);
+  --el-box-shadow-light:         0 0 0 1px var(--border-panel), 0 4px 16px rgba(0,0,0,0.5);
+  --el-box-shadow-lighter:       0 0 0 1px var(--border-separator);
+  --el-box-shadow-dark:          var(--glow-panel-active);
+
+  --el-font-family:              var(--font-ui);
+  --el-font-size-base:           13px;
+
+  /* Table */
+  --el-table-border-color:       var(--border-separator);
+  --el-table-bg-color:           var(--bg-panel);
+  --el-table-tr-bg-color:        var(--bg-panel);
+  --el-table-current-row-bg-color: var(--bg-panel-elevated);
+  --el-table-row-hover-bg-color: var(--bg-panel-elevated);
+  --el-table-fixed-box-shadow:   none;
+  --el-table-header-bg-color:    var(--bg-panel-deep);
+  --el-table-header-text-color:  var(--text-secondary);
+  --el-table-header-font-color:  var(--text-secondary);
+
+  /* Form */
+  --el-input-bg-color:           var(--bg-panel-deep);
+  --el-input-border-color:       var(--border-panel);
+  --el-input-hover-border-color: var(--border-active);
+  --el-input-focus-border-color: var(--signal-crystal);
+
+  /* Pagination */
+  --el-pagination-bg-color:      transparent;
+  --el-pagination-button-color:  var(--text-secondary);
+
+  /* Select */
+  --el-select-input-color:       var(--text-primary);
+  --el-select-option-hover-background: var(--bg-panel-elevated);
+  --el-select-option-selected-font-color: var(--signal-crystal);
+}
+
+/* Specific EP overrides that can't be done via CSS vars alone */
+.el-menu {
+  background-color: transparent !important;
+  border-right: none !important;
+}
+.el-menu-item,
+.el-sub-menu__title {
+  font-family: var(--font-ui) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 0 !important;
+  margin: 1px 0 !important;
+  color: var(--text-secondary) !important;
+  transition: all 150ms ease !important;
+}
+.el-menu-item:hover,
+.el-sub-menu__title:hover {
+  background: var(--signal-crystal-dim) !important;
+  color: var(--signal-crystal) !important;
+}
+.el-menu-item.is-active {
+  background: rgba(0, 229, 255, 0.12) !important;
+  color: var(--signal-crystal) !important;
+  border-left: 2px solid var(--signal-crystal) !important;
+}
+.el-sub-menu .el-menu-item.is-active {
+  border-left-color: transparent !important;
+}
+
+.el-table th.el-table__cell {
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--bg-panel-deep) !important;
+  color: var(--text-tertiary) !important;
+  border-bottom: 1px solid var(--border-panel) !important;
+}
+.el-table td.el-table__cell {
+  font-family: var(--font-mono) !important;
+  font-size: 12px !important;
+  border-bottom: 1px solid var(--border-separator) !important;
+}
+.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
+  background: var(--bg-panel-elevated) !important;
+}
+
+.el-button {
+  font-family: var(--font-ui) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 2px !important;
+  transition: all 150ms ease !important;
+}
+.el-button--primary {
+  background: var(--signal-crystal-dim) !important;
+  border-color: var(--signal-crystal) !important;
+  color: var(--signal-crystal) !important;
+}
+.el-button--primary:hover {
+  background: rgba(0, 229, 255, 0.22) !important;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.35) !important;
+}
+.el-button--danger {
+  background: var(--signal-alert-dim) !important;
+  border-color: var(--signal-alert) !important;
+  color: var(--signal-alert) !important;
+}
+.el-button--warning {
+  background: var(--signal-lava-dim) !important;
+  border-color: var(--signal-lava) !important;
+  color: var(--signal-lava) !important;
+}
+
+.el-dialog {
+  background: var(--bg-overlay) !important;
+  border: 1px solid var(--border-panel) !important;
+  border-radius: 2px !important;
+  backdrop-filter: blur(16px);
+}
+.el-dialog__header {
+  border-bottom: 1px solid var(--border-separator) !important;
+  padding: 14px 20px !important;
+}
+.el-dialog__title {
+  font-family: var(--font-display) !important;
+  font-size: 13px !important;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--signal-crystal) !important;
+}
+
+.el-tag {
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+  border-radius: 1px !important;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.el-loading-mask {
+  background: rgba(10, 14, 26, 0.75) !important;
+  backdrop-filter: blur(4px);
+}
+.el-loading-spinner .el-loading-text {
+  font-family: var(--font-mono) !important;
+  color: var(--signal-crystal) !important;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+}
+/* Override default spinner with console dot pattern */
+.el-loading-spinner .circular {
+  display: none !important; /* Boot-sequence replaces spinner */
+}
+.el-loading-spinner::before {
+  content: 'INITIALIZING...';
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--signal-crystal);
+  letter-spacing: 0.15em;
+  animation: led-pulse 1200ms ease-in-out infinite;
+}
+
+/* Pagination dark */
+.el-pagination {
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+}
+.el-pagination.is-background .el-pager li.is-active {
+  background: var(--signal-crystal-dim) !important;
+  color: var(--signal-crystal) !important;
+}
+
+/* Select / dropdown */
+.el-select-dropdown {
+  background: var(--bg-overlay) !important;
+  border: 1px solid var(--border-panel) !important;
+  border-radius: 2px !important;
+}
+.el-dropdown-menu {
+  background: var(--bg-overlay) !important;
+  border: 1px solid var(--border-panel) !important;
+  border-radius: 2px !important;
+  backdrop-filter: blur(16px);
+}
+.el-dropdown-menu__item {
+  font-family: var(--font-ui) !important;
+  font-size: 12px !important;
+  color: var(--text-secondary) !important;
+  letter-spacing: 0.04em;
+}
+.el-dropdown-menu__item:hover {
+  background: var(--signal-crystal-dim) !important;
+  color: var(--signal-crystal) !important;
+}
+
+/* Badge */
+.el-badge__content {
+  font-family: var(--font-mono) !important;
+  font-size: 9px !important;
+  background: var(--signal-alert) !important;
+  border-color: var(--bg-panel) !important;
+}
+
+/* Empty state */
+.el-empty__description p {
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  color: var(--text-tertiary) !important;
+  letter-spacing: 0.08em;
+}
+
+/* ================================================================
+ * OPENAYERS OVERRIDES — Dark console controls
+ * ================================================================ */
+.ol-zoom {
+  top: auto !important;
+  bottom: 20px !important;
+  left: 16px !important;
+  background: transparent !important;
+}
+.ol-zoom .ol-zoom-in,
+.ol-zoom .ol-zoom-out {
+  background: var(--bg-panel) !important;
+  color: var(--signal-crystal) !important;
+  border: 1px solid var(--border-panel) !important;
+  border-radius: 1px !important;
+  margin-bottom: 3px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  width: 28px !important;
+  height: 28px !important;
+  transition: all 150ms ease !important;
+}
+.ol-zoom .ol-zoom-in:hover,
+.ol-zoom .ol-zoom-out:hover {
+  background: var(--signal-crystal-dim) !important;
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.35) !important;
+}
+.ol-attribution {
+  background: rgba(10, 14, 26, 0.80) !important;
+  color: var(--text-tertiary) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 9px !important;
+  border-top: 1px solid var(--border-separator) !important;
+}
+.ol-attribution button {
+  color: var(--text-tertiary) !important;
+}
+.ol-attribution ul, .ol-attribution a {
+  color: var(--text-tertiary) !important;
+}
+
+/* ================================================================
+ * ALERT LEVEL TAGS — Semantic warning level badges
+ * ================================================================ */
+.lvl-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 1px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+.lvl-1 {
+  color: var(--level-1-color);
+  background: var(--level-1-dim);
+  border: 1px solid rgba(59, 139, 240, 0.30);
+}
+.lvl-2 {
+  color: var(--level-2-color);
+  background: var(--level-2-dim);
+  border: 1px solid rgba(255, 214, 10, 0.30);
+}
+.lvl-3 {
+  color: var(--level-3-color);
+  background: var(--level-3-dim);
+  border: 1px solid rgba(255, 106, 26, 0.30);
+}
+.lvl-4 {
+  color: var(--level-4-color);
+  background: var(--level-4-dim);
+  border: 1px solid rgba(255, 45, 45, 0.35);
+  animation: notif-flash 1200ms ease-in-out infinite;
+  animation-delay: 1400ms;
+}

@@ -20,6 +20,11 @@
           <el-option label="橙色" :value="3" />
           <el-option label="红色" :value="4" />
         </el-select>
+        <el-select v-model="filter.status" placeholder="状态" clearable style="width: 130px" @change="loadPage">
+          <el-option label="进行中" :value="1" />
+          <el-option label="处置中" :value="2" />
+          <el-option label="已结束" :value="3" />
+        </el-select>
       </div>
       <div class="toolbar-right">
         <el-button :icon="Refresh" @click="loadPage" />
@@ -59,10 +64,17 @@
         <el-table-column label="发生时间" width="170">
           <template #default="{ row }">{{ formatDateTime(row.occurredAt) }}</template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column label="状态" width="110" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 1" type="warning" size="small">进行中</el-tag>
-            <el-tag v-else type="info" size="small">已结束</el-tag>
+            <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="280" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" link type="danger" :icon="BellFilled" @click="onPublishAlert(row)">发布预警</el-button>
+            <el-button v-if="row.status === 1" size="small" link type="warning" @click="onChangeStatus(row, 2)">处置中</el-button>
+            <el-button v-if="row.status === 2" size="small" link type="success" @click="onChangeStatus(row, 3)">已结束</el-button>
+            <el-button v-if="row.status === 3" size="small" link @click="onChangeStatus(row, 1)">重新开启</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -79,6 +91,38 @@
         />
       </div>
     </div>
+
+    <!-- 发布预警弹窗 -->
+    <el-dialog v-model="alertDlg" title="发布预警" width="520px">
+      <el-form :model="alertForm" label-width="80px" size="default">
+        <el-form-item label="事件">
+          <el-input :model-value="alertForm.eventTitle" disabled />
+        </el-form-item>
+        <el-form-item label="标题"><el-input v-model="alertForm.title" placeholder="留空则用事件标题 + ' 预警'" /></el-form-item>
+        <el-form-item label="等级">
+          <el-radio-group v-model="alertForm.level">
+            <el-radio-button :value="1">蓝色</el-radio-button>
+            <el-radio-button :value="2">黄色</el-radio-button>
+            <el-radio-button :value="3">橙色</el-radio-button>
+            <el-radio-button :value="4">红色</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="通道">
+          <el-checkbox-group v-model="alertForm.channels">
+            <el-checkbox value="in_site">站内信</el-checkbox>
+            <el-checkbox value="sms">短信</el-checkbox>
+            <el-checkbox value="email">邮件</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="alertForm.content" type="textarea" :rows="3" placeholder="留空则用事件描述" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="alertDlg = false">取消</el-button>
+        <el-button type="primary" @click="onAlertSubmit">发布</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 弹窗 -->
     <el-dialog v-model="dlg" title="新建灾害事件" width="540px">
@@ -122,15 +166,22 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { apiDisasterPage, apiDisasterCreate } from '@/api/disaster'
+import { Search, Refresh, Plus, BellFilled } from '@element-plus/icons-vue'
+import { apiDisasterPage, apiDisasterCreate, apiDisasterChangeStatus } from '@/api/disaster'
+import { apiAlertCreateFromEvent } from '@/api/alert'
+import { apiDictionaryByType } from '@/api/dictionary'
 import { formatDateTime } from '@/utils/format'
 import AlertLevelTag from '@/components/common/AlertLevelTag.vue'
 
 const rows = ref([])
 const total = ref(0)
 const loading = ref(false)
-const filter = reactive({ keyword: '', type: null, level: null, page: 1, size: 10 })
+const filter = reactive({ keyword: '', type: null, level: null, status: null, page: 1, size: 10 })
+
+const STATUS_LABELS = { 1: '进行中', 2: '处置中', 3: '已结束' }
+const STATUS_TAG_TYPES = { 1: 'warning', 2: 'primary', 3: 'info' }
+function statusLabel(s) { return STATUS_LABELS[s] || '未知' }
+function statusTagType(s) { return STATUS_TAG_TYPES[s] || 'info' }
 
 const dlg = ref(false)
 const form = reactive({
@@ -139,13 +190,15 @@ const form = reactive({
   occurredAt: new Date().toISOString().slice(0, 19) + 'Z',
   description: ''
 })
-const types = [
-  { label: '滑坡', value: 'landslide' },
-  { label: '泥石流', value: 'debris_flow' },
-  { label: '崩塌', value: 'collapse' },
-  { label: '暴雨', value: 'rainstorm' }
-]
-function typeLabel(v) { return types.find(t => t.value === v)?.label || v }
+const types = ref([])
+async function loadTypes() {
+  const list = await apiDictionaryByType('disaster_type')
+  types.value = (list || []).map(d => ({ label: d.itemValue, value: d.itemCode }))
+  if (types.value.length && !types.value.find(t => t.value === form.type)) {
+    form.type = types.value[0].value
+  }
+}
+function typeLabel(v) { return types.value.find(t => t.value === v)?.label || v }
 
 async function loadPage() {
   loading.value = true
@@ -164,7 +217,42 @@ async function onSave() {
   loadPage()
 }
 
-onMounted(loadPage)
+async function onChangeStatus(row, next) {
+  await apiDisasterChangeStatus(row.id, next)
+  ElMessage.success(`已变更为「${statusLabel(next)}」`)
+  loadPage()
+}
+
+const alertDlg = ref(false)
+const alertForm = reactive({
+  eventId: null, eventTitle: '', title: '', level: 2, content: '', channels: ['in_site']
+})
+function onPublishAlert(row) {
+  Object.assign(alertForm, {
+    eventId: row.id,
+    eventTitle: row.title,
+    title: '',
+    level: row.level || 2,
+    content: '',
+    channels: ['in_site']
+  })
+  alertDlg.value = true
+}
+async function onAlertSubmit() {
+  await apiAlertCreateFromEvent(alertForm.eventId, {
+    level: alertForm.level,
+    title: alertForm.title || undefined,
+    content: alertForm.content || undefined,
+    channels: alertForm.channels
+  })
+  ElMessage.success('预警已发布')
+  alertDlg.value = false
+}
+
+onMounted(() => {
+  loadTypes()
+  loadPage()
+})
 </script>
 
 <style scoped lang="scss">

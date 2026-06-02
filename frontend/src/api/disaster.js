@@ -7,3 +7,4 @@ export const apiDisasterUpdate = (id, data) => request.put(`/disasters/${id}`, d
 export const apiDisasterDelete = (id) => request.delete(`/disasters/${id}`)
 export const apiDisasterLatest = (params) => request.get('/disasters/latest', { params })
 export const apiDisasterGeoJson = () => request.get('/disasters/geojson')
+export const apiDisasterChangeStatus = (id, status) => request.patch(`/disasters/${id}/status`, null, { params: { status } })

@@ -21,6 +21,7 @@ backend/.mvn/wrapper/maven-wrapper.jar
 backend/logs/
 backend/*.log
 backend/HELP.md
+backend/.idea
 
 # Docker
 deploy/data/

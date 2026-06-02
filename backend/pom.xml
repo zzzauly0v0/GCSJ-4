@@ -14,6 +14,7 @@
     <groupId>com.gcsj</groupId>
     <artifactId>disaster-backend</artifactId>
     <version>1.0.0</version>
+    <packaging>jar</packaging>
     <name>disaster-backend</name>
     <description>GCSJ-4 气象地质灾害监测预警管理系统 - 后端</description>
 

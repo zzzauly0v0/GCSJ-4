@@ -1,205 +1,75 @@
-/* ============================================================
-   GCSJ 设计系统 - 气象浅色主题
-   ============================================================ */
+/*
+ * main.scss — Legacy compatibility shim (Aurora light theme)
+ *
+ * 旧版页面（DisasterView / AlertView / LayerView / PlanView / system/* 等）
+ * 还在用 .gcsj-card / .gcsj-page / .dash-panel 这些遗留类，
+ * 这里把它们与遗留 token 对齐到 Aurora 学术云蓝（白底）主题。
+ *
+ * 仅保留实际仍在使用的类与 token；未使用的已清理。
+ */
 
+/* Remap legacy tokens (仅保留实际还有人用的) → Aurora 白底 token */
 :root {
-  /* 预警等级色（保留语义色） */
-  --alert-blue:   #3B82F6;
-  --alert-yellow: #F59E0B;
-  --alert-orange: #F97316;
-  --alert-red:    #EF4444;
+  /* 背景 / 边框 */
+  --bg:           var(--au-bg-page);
+  --bg-soft:      var(--au-bg-subtle);
+  --border:       var(--au-border-subtle);
+  --border-soft:  var(--au-border-subtle);
 
-  /* 大屏 / 后台共用浅色主题 */
-  --bg:           #F4F7FB;
-  --bg-soft:      #EEF3F9;
-  --panel:        #FFFFFF;
-  --panel-soft:   #F8FAFC;
-  --border:       #E5E9F0;
-  --border-soft:  #EEF1F6;
+  /* 文字层级 */
+  --text-1:       var(--au-text-strong);
+  --text-2:       var(--au-text-primary);
+  --text-3:       var(--au-text-secondary);
 
-  --text-1:       #0F172A;
-  --text-2:       #475569;
-  --text-3:       #94A3B8;
-  --text-4:       #CBD5E1;
-
-  --primary:      #0EA5E9;
-  --primary-soft: #E0F2FE;
-  --primary-deep: #0284C7;
-  --accent:       #10B981;
-  --accent-soft:  #D1FAE5;
-
-  /* 大屏沿用同一套 token，避免双主题维护 */
-  --dash-bg:      var(--bg);
-  --dash-panel:   var(--panel);
-  --dash-border:  var(--border);
-  --dash-text-1:  var(--text-1);
-  --dash-text-2:  var(--text-2);
-  --dash-text-3:  var(--text-3);
-  --dash-accent:  var(--primary);
-
-  /* 阴影 */
-  --shadow-sm:    0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md:    0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-lg:    0 4px 12px rgba(15, 23, 42, 0.06);
+  /* 主色 */
+  --primary:      var(--au-info);
+  --primary-soft: var(--au-info-soft);
+  --primary-deep: #1D4ED8;
 }
 
-/* ---------- reset ---------- */
-html, body, #app {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  color: var(--text-1);
-  background: var(--bg);
-}
-* { box-sizing: border-box; }
-ul, ol, li { list-style: none; padding: 0; margin: 0; }
-a { color: inherit; text-decoration: none; }
-
-/* ---------- 通用工具 ---------- */
-.flex            { display: flex; }
-.flex-col        { display: flex; flex-direction: column; }
-.flex-center     { display: flex; align-items: center; justify-content: center; }
-.flex-between    { display: flex; align-items: center; justify-content: space-between; }
-.flex-1          { flex: 1; min-width: 0; min-height: 0; }
-.gap-8           { gap: 8px; }  .gap-12 { gap: 12px; }  .gap-16 { gap: 16px; }
-.text-2          { color: var(--text-2); }
-.text-3          { color: var(--text-3); }
-.fs-12           { font-size: 12px; }
-.fs-13           { font-size: 13px; }
-.fs-14           { font-size: 14px; }
-
-/* ---------- 后台页面 ---------- */
+/* ================================================================
+ * .gcsj-page / .gcsj-card — 白底学术风卡片
+ * ================================================================ */
 .gcsj-page {
   padding: 16px;
-}
-.gcsj-card {
-  background: var(--panel);
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-}
-.gcsj-card-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px; border-bottom: 1px solid var(--border-soft);
-  .title {
-    font-size: 15px; font-weight: 600; color: var(--text-1);
-    display: flex; align-items: center; gap: 8px;
-    &::before {
-      content: ''; width: 3px; height: 14px; background: var(--primary); border-radius: 2px;
-    }
-  }
-}
-.gcsj-card-body { padding: 18px; }
-
-/* ---------- 大屏共用（浅色版） ---------- */
-.dash-root {
-  position: relative;
-  background: var(--bg);
-  color: var(--text-1);
+  background: transparent;
   min-height: 100%;
+  color: var(--au-text-primary);
+}
+
+.gcsj-card {
+  background: var(--au-bg-surface);
+  border: 1px solid var(--au-border-subtle);
+  border-radius: var(--au-radius-lg);
+  box-shadow: var(--au-shadow-sm);
+  clip-path: none;
+  color: var(--au-text-primary);
   overflow: hidden;
 }
 
+/* ================================================================
+ * .dash-panel — LoginView / NotFoundView 仍在用
+ * ================================================================ */
 .dash-panel {
   position: relative;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-sm);
+  background: var(--au-bg-surface);
+  border: 1px solid var(--au-border-subtle);
+  border-radius: var(--au-radius-lg);
+  box-shadow: var(--au-shadow-sm);
+  color: var(--au-text-primary);
 }
 
-/* 历史装饰 (corner / before / after) — 保留占位但隐藏，避免老页面报错 */
-.dash-panel::before,
-.dash-panel::after,
-.dash-panel .corner-bl,
-.dash-panel .corner-br {
-  display: none !important;
-}
-
-.dash-panel-title {
-  display: flex; align-items: center; gap: 8px;
-  height: 44px;
-  padding: 0 16px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-1);
-  border-bottom: 1px solid var(--border-soft);
-  .dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--primary);
-  }
-  .extra { margin-left: auto; font-size: 12px; color: var(--text-3); font-weight: 400; }
-}
-
-/* 浅色滚动条 */
-.dash-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-.dash-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
-.dash-scroll::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
-.dash-scroll::-webkit-scrollbar-track { background: transparent; }
-
-/* ---------- 数字字体 ---------- */
+/* ================================================================
+ * 工具类
+ * ================================================================ */
 .num-mono {
-  font-family: 'SF Pro Display', 'Inter', 'Helvetica Neue', sans-serif;
+  font-family: var(--au-font-num) !important;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-feature-settings: var(--au-font-feat);
 }
 
-/* ---------- 预警等级标签 ---------- */
-.lvl-tag {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border-radius: 4px;
-  font-size: 12px; font-weight: 600;
-  background: color-mix(in srgb, currentColor 12%, transparent);
-}
-.lvl-1 { color: var(--alert-blue); }
-.lvl-2 { color: var(--alert-yellow); }
-.lvl-3 { color: var(--alert-orange); }
-.lvl-4 { color: var(--alert-red); }
-
-/* ---------- ElementPlus 微调 ---------- */
-.el-button--primary {
-  --el-button-bg-color: var(--primary);
-  --el-button-border-color: var(--primary);
-  --el-button-hover-bg-color: var(--primary-deep);
-  --el-button-hover-border-color: var(--primary-deep);
-}
-.el-table { font-size: 13px; }
-.el-table th.el-table__cell {
-  background: var(--panel-soft) !important;
-  color: var(--text-2);
-  font-weight: 600;
-}
-
-/* 大屏内的 ElementPlus 适配（也是浅色） */
-.dash-root {
-  .el-empty__description p { color: var(--text-3); }
-}
-
-/* ---------- OL 地图覆盖（浅色） ---------- */
-.ol-zoom {
-  top: auto !important;
-  bottom: 16px !important;
-  left: 16px !important;
-  background: transparent !important;
-}
-.ol-zoom .ol-zoom-in,
-.ol-zoom .ol-zoom-out {
-  background: #fff !important;
-  color: var(--text-1) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 6px !important;
-  margin-bottom: 4px !important;
-  box-shadow: var(--shadow-sm);
-}
-.ol-zoom .ol-zoom-in:hover,
-.ol-zoom .ol-zoom-out:hover {
-  background: var(--primary-soft) !important;
-  color: var(--primary-deep) !important;
-}
-.ol-attribution {
-  background: rgba(255, 255, 255, 0.85) !important;
-  color: var(--text-3) !important;
-  ul, a { color: var(--text-3) !important; }
-}
+/* 国标预警等级文字色（白底版本） */
+.lvl-1 { color: #3B82F6; }
+.lvl-2 { color: #F59E0B; }
+.lvl-3 { color: #F97316; }
+.lvl-4 { color: #DC2626; }

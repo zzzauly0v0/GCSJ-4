@@ -16,7 +16,6 @@ public class UserConverter {
         vo.setPhone(user.getPhone());
         vo.setEmail(user.getEmail());
         vo.setAvatar(user.getAvatar());
-        vo.setOrgId(user.getOrgId());
         vo.setStatus(user.getStatus());
         vo.setLastLoginAt(user.getLastLoginAt());
         vo.setCreatedAt(user.getCreatedAt());

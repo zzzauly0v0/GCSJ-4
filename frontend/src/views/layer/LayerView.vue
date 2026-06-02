@@ -66,14 +66,19 @@ function onEdit(row) { Object.assign(form, row); dlg.value = true }
 async function onSave() {
   if (form.id) await apiLayerUpdate(form.id, form)
   else await apiLayerCreate(form)
-  ElMessage.success('已保存'); dlg.value = false; load()
+  ElMessage.success({ message: '已保存, 刷新监测大屏页面后生效', duration: 2500 })
+  dlg.value = false
+  load()
 }
 async function onDel(row) {
   await ElMessageBox.confirm(`删除图层 [${row.name}]?`, '确认')
-  await apiLayerDelete(row.id); ElMessage.success('已删除'); load()
+  await apiLayerDelete(row.id)
+  ElMessage.success({ message: '已删除, 刷新监测大屏后生效', duration: 2500 })
+  load()
 }
 async function onToggle(row) {
-  await apiLayerUpdate(row.id, row); ElMessage.success('已更新')
+  await apiLayerUpdate(row.id, row)
+  ElMessage.success({ message: '已更新, 刷新监测大屏后生效', duration: 2500 })
 }
 
 onMounted(load)
