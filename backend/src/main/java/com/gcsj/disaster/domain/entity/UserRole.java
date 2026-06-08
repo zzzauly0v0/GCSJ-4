@@ -11,7 +11,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "sys_user_role")
+@Table(name = "sys_user_role", schema = "sys")
 @IdClass(UserRole.PK.class)
 public class UserRole {
     @Id

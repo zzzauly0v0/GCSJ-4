@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "sys_dictionary")
+@Table(name = "sys_dictionary", schema = "sys")
 public class Dictionary {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

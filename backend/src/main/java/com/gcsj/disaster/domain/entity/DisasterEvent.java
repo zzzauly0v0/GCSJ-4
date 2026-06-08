@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(name = "biz_disaster_event")
+@Table(name = "biz_disaster_event", schema = "biz")
 public class DisasterEvent extends BaseEntity {
     @Column(unique = true, nullable = false, length = 64)
     private String code;

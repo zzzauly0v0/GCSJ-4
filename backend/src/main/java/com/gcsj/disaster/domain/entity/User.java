@@ -9,7 +9,7 @@ import java.time.OffsetDateTime;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(name = "sys_user")
+@Table(name = "sys_user", schema = "sys")
 public class User extends BaseEntity {
 
     @Column(unique = true, nullable = false, length = 64)

@@ -10,7 +10,7 @@ import java.time.OffsetDateTime;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(name = "biz_alert")
+@Table(name = "biz_alert", schema = "biz")
 public class Alert extends BaseEntity {
     @Column(unique = true, nullable = false, length = 64)
     private String code;
