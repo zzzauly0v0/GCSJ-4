@@ -254,6 +254,65 @@ docker compose -f deploy/docker-compose.yml up -d
 
 ---
 
+## 数据库变更同步
+
+`data/init.sql` 之外新增的脚本（如 `02_sichuan_schema.sql`）需要应用到现有库。下面 **A / B / C 三选一**，已有数据不会丢。
+
+### A. 直接灌入（最快，推荐）
+
+宿主机一行命令把脚本喂进容器内的 psql：
+
+```bash
+docker exec -i gcsj-postgres psql -U gcsj -d gcsj \
+  -v ON_ERROR_STOP=1 \
+  < data/02_sichuan_schema.sql
+```
+
+> `-v ON_ERROR_STOP=1` 让脚本遇错立刻中断，避免半成功。
+
+### B. 拷进容器再交互执行（适合调试）
+
+```bash
+docker cp data/02_sichuan_schema.sql gcsj-postgres:/tmp/
+docker exec -it gcsj-postgres psql -U gcsj -d gcsj
+```
+
+进入 psql 后：
+```sql
+gcsj=# \i /tmp/02_sichuan_schema.sql
+gcsj=# \q
+```
+
+### C. 全新重建（会清空数据，仅首次部署用）
+
+`compose` 里挂载到 `/docker-entrypoint-initdb.d/` 的 SQL **只在数据卷为空时执行**，所以要先 `down -v` 清卷：
+
+```bash
+docker compose -f deploy/docker-compose.db.yml down -v
+docker compose -f deploy/docker-compose.db.yml up -d
+```
+
+### 验证脚本生效
+
+```bash
+docker exec -i gcsj-postgres psql -U gcsj -d gcsj -c "
+SELECT 'rivers'      AS tbl, COUNT(*) FROM gis.gis_river      UNION ALL
+SELECT 'settlements',         COUNT(*) FROM gis.gis_settlement UNION ALL
+SELECT 'events',              COUNT(*) FROM biz.biz_disaster_event UNION ALL
+SELECT 'alerts',              COUNT(*) FROM biz.biz_alert      UNION ALL
+SELECT 'plans',               COUNT(*) FROM biz.biz_emergency_plan;"
+```
+
+期望：rivers=6 · settlements=23 · events=15 · alerts=4 · plans≥3。
+
+### 行政区边界（Python 脚本，跑完上面再跑这步）
+
+```bash
+cd spatial_analyse
+uv sync
+uv run python ../data/load_sichuan_boundary.py    # 拉阿里 DataV → gis_admin_region
+```
+
 ## 文档
 
 - 系统总览：[`docs/*.md`](docs/*.md)

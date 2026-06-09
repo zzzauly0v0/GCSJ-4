@@ -73,23 +73,43 @@
     </section>
 
     <!-- ============================================================
-         MAP — 空间监测态势
+         MAP — 空间监测态势 (四川省专题底图)
     ============================================================ -->
     <section class="map-section">
       <AuCard
-        title="空间监测态势"
-        subtitle="EPSG:3857 · OpenLayers"
+        title="四川省 · 空间监测态势"
+        subtitle="EPSG:3857 · OpenLayers · 省/市/县三级行政区 + 主要河流 + 实时灾害事件"
         gradient-border
         dot
         flat
         class="card-map"
       >
         <template #extra>
-          <div class="map-legend">
-            <span class="lg-item"><span class="lg-dot" style="background:#DC2626" />红色</span>
-            <span class="lg-item"><span class="lg-dot" style="background:#F97316" />橙色</span>
-            <span class="lg-item"><span class="lg-dot" style="background:#F59E0B" />黄色</span>
-            <span class="lg-item"><span class="lg-dot" style="background:#3B82F6" />蓝色</span>
+          <div class="map-toolbar">
+            <div class="map-toggle-group">
+              <label class="map-toggle">
+                <input type="checkbox" v-model="scLayerToggle.province" @change="syncScLayer('province')" />
+                <span>省界</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="scLayerToggle.city" @change="syncScLayer('city')" />
+                <span>市州</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="scLayerToggle.river" @change="syncScLayer('river')" />
+                <span>河流</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="scLayerToggle.settlement" @change="syncScLayer('settlement')" />
+                <span>居民点</span>
+              </label>
+            </div>
+            <div class="map-legend">
+              <span class="lg-item"><span class="lg-dot" style="background:#DC2626" />红色</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#F97316" />橙色</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#F59E0B" />黄色</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#3B82F6" />蓝色</span>
+            </div>
           </div>
         </template>
         <div ref="mapEl" class="au-map-canvas" />
@@ -216,7 +236,14 @@ import * as echarts from 'echarts'
 import { useAlertStore } from '@/store/alert'
 import { apiDisasterGeoJson } from '@/api/disaster'
 import { apiAlertGeoJson } from '@/api/alert'
+import { apiRegionsGeoJson, apiRiversGeoJson, apiSettlementsGeoJson } from '@/api/gis'
 import { useMap } from '@/hooks/useMap'
+
+import VectorLayer from 'ol/layer/Vector'
+import VectorSource from 'ol/source/Vector'
+import GeoJSON from 'ol/format/GeoJSON'
+import { Style, Stroke, Fill, Circle as CircleStyle, Text } from 'ol/style'
+import { fromLonLat } from 'ol/proj'
 
 import AuCard from '@/components/aurora/AuCard.vue'
 import AuSelect from '@/components/aurora/AuSelect.vue'
@@ -226,12 +253,16 @@ import AuKpiCard from '@/components/aurora/AuKpiCard.vue'
 const alertStore = useAlertStore()
 
 // ---------- Map ----------
+// 默认聚焦四川 (102.7°E, 30.65°N), 大屏地图框已放大到主视觉区
+const SC_CENTER = [102.7, 30.65]
+const SC_ZOOM = 6.6
+
 const mapEl = ref(null)
-const { loadGeoJson } = useMap(mapEl, {
-  center: [104, 35],
-  zoom: 5,
+const { map: olMapRef, loadGeoJson } = useMap(mapEl, {
+  center: SC_CENTER,
+  zoom: SC_ZOOM,
   // 简易内置注册表：OSM 底图 + 预警 / 灾害事件矢量层
-  // 后端 gis_layer 表如有自定义图层，可在 onMounted 之后通过 apiLayerList 扩展
+  // 四川行政区/河流/居民点四个矢量图层在 onMounted 后动态挂载
   layerRegistry: [
     {
       code: 'base_osm',
@@ -240,10 +271,115 @@ const { loadGeoJson } = useMap(mapEl, {
       visible: true,
       zIndex: 0,
     },
-    { code: 'biz_disasters', type: 'vector', visible: true, zIndex: 20 },
-    { code: 'biz_alerts',    type: 'vector', visible: true, zIndex: 30 },
+    { code: 'biz_disasters', type: 'vector', visible: true, zIndex: 30 },
+    { code: 'biz_alerts',    type: 'vector', visible: true, zIndex: 31 },
   ],
 })
+
+// 四川专题图层 (动态挂到地图实例上, 不走 useMap 注册表)
+const scLayerToggle = ref({ province: true, city: false, river: true, settlement: false })
+const scOlLayers = {}
+const geoFmt = new GeoJSON()
+
+function makeRegionStyle(strokeColor, strokeWidth, withLabel = false) {
+  return (feature, resolution) => {
+    const styles = [new Style({
+      stroke: new Stroke({ color: strokeColor, width: strokeWidth }),
+      fill: new Fill({ color: strokeColor + '0F' })
+    })]
+    if (withLabel && resolution < 4500) {
+      const name = feature.get('name')
+      if (name) {
+        styles.push(new Style({
+          text: new Text({
+            text: name,
+            font: '11px "PingFang SC", sans-serif',
+            fill: new Fill({ color: '#1E293B' }),
+            stroke: new Stroke({ color: 'rgba(255,255,255,0.85)', width: 3 })
+          })
+        }))
+      }
+    }
+    return styles
+  }
+}
+
+function makeRiverStyle() {
+  return new Style({ stroke: new Stroke({ color: '#0EA5E9', width: 2 }) })
+}
+
+function makeSettlementStyle() {
+  return (feature, resolution) => {
+    const styles = [new Style({
+      image: new CircleStyle({
+        radius: 4,
+        fill: new Fill({ color: '#F59E0B' }),
+        stroke: new Stroke({ color: '#1F2937', width: 1 })
+      })
+    })]
+    if (resolution < 3000) {
+      const name = feature.get('name')
+      if (name) {
+        styles.push(new Style({
+          text: new Text({
+            text: name,
+            font: '10px "PingFang SC", sans-serif',
+            fill: new Fill({ color: '#0F172A' }),
+            stroke: new Stroke({ color: 'rgba(255,255,255,0.85)', width: 2 }),
+            offsetY: -10
+          })
+        }))
+      }
+    }
+    return styles
+  }
+}
+
+const scLayerSpecs = [
+  { key: 'province',   zIndex: 10, fetcher: () => apiRegionsGeoJson({ level: 1, adcode: '510000' }), styleFn: makeRegionStyle('#0EA5E9', 2.4) },
+  { key: 'city',       zIndex: 11, fetcher: () => apiRegionsGeoJson({ level: 2, parent: '510000' }), styleFn: makeRegionStyle('#6366F1', 1.2, true) },
+  { key: 'river',      zIndex: 20, fetcher: () => apiRiversGeoJson(), styleFn: makeRiverStyle() },
+  { key: 'settlement', zIndex: 25, fetcher: () => apiSettlementsGeoJson(), styleFn: makeSettlementStyle() }
+]
+
+async function attachSichuanLayers() {
+  const olMap = olMapRef.value
+  if (!olMap) return
+  for (const spec of scLayerSpecs) {
+    const lyr = new VectorLayer({
+      source: new VectorSource(),
+      style: spec.styleFn,
+      visible: !!scLayerToggle.value[spec.key],
+      zIndex: spec.zIndex
+    })
+    scOlLayers[spec.key] = lyr
+    olMap.addLayer(lyr)
+    if (scLayerToggle.value[spec.key]) await loadSichuanLayer(spec)
+  }
+}
+
+async function loadSichuanLayer(spec) {
+  try {
+    const geo = await spec.fetcher()
+    const lyr = scOlLayers[spec.key]
+    if (!lyr || !geo) return
+    const feats = geoFmt.readFeatures(geo, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' })
+    lyr.getSource().clear()
+    lyr.getSource().addFeatures(feats)
+    lyr.set('loaded', true)
+  } catch (_) { /* 静默, 已由 request 拦截器提示 */ }
+}
+
+async function syncScLayer(key) {
+  const lyr = scOlLayers[key]
+  const visible = scLayerToggle.value[key]
+  if (!lyr) return
+  lyr.setVisible(visible)
+  if (visible && !lyr.get('loaded')) {
+    const spec = scLayerSpecs.find(s => s.key === key)
+    if (spec) await loadSichuanLayer(spec)
+  }
+}
 
 // ---------- Filters ----------
 const filterRegion = ref(null)
@@ -506,6 +642,8 @@ async function reloadAll() {
 onMounted(async () => {
   await reloadAll()
   await nextTick()
+  // 等 useMap 内部 onMounted 把 olMapRef 拼出来再挂图层 (微任务跳一拍)
+  setTimeout(() => { attachSichuanLayers() }, 0)
   renderCharts()
   resizeFn = () => { trendChart?.resize(); pieChart?.resize() }
   window.addEventListener('resize', resizeFn)
@@ -609,9 +747,29 @@ watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
 .map-section { display: flex; }
 .card-map {
   flex: 1;
-  height: 380px;
-  min-height: 320px;
+  height: 600px;
+  min-height: 520px;
 }
+.map-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.map-toggle-group {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--au-text-secondary);
+}
+.map-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.map-toggle input { accent-color: #6366F1; }
 .au-map-canvas {
   width: 100%;
   height: 100%;
