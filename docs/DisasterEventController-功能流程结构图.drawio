@@ -1,0 +1,112 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="DisasterEventController流程图" id="disaster-flow">
+    <mxGraphModel dx="1100" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="1700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="start" value="开始 · 灾害事件请求" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="470" y="40" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="d1" value="操作类型 ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="480" y="130" width="160" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="io1" value="CreateDisasterEventDTO&#10;(写操作入参)" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="135" width="210" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- 写操作 -->
+        <mxCell id="p1" value="校验入参 · 生成 code&#10;status 默认=1 进行中" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="60" y="280" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="按 id 整体更新" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="300" y="280" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d2" value="目标状态 ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="500" y="270" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p5" value="删除事件" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="710" y="280" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3a" value="status → 1 进行中" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="430" y="400" width="140" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="p3b" value="status → 2 处置中" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="430" y="455" width="140" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="p3c" value="status → 3 已结束&#10;(endAt 有意义)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="600" y="420" width="160" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- 数据表 -->
+        <mxCell id="db" value="biz.biz_disaster_event&#10;灾害事件实体表" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="470" y="560" width="190" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- 读操作判断 -->
+        <mxCell id="d3" value="查询场景 ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="490" y="700" width="150" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="q1" value="page(level,type,status) 分页" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="120" y="830" width="220" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="q2" value="get(id) 详情" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="380" y="830" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="q3" value="latest(limit) 大屏最新" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="120" y="895" width="220" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="q4" value="asGeoJson() 地图(含影响区域)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="380" y="895" width="220" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="vo" value="DisasterEventVO 输出&#10;等级标签/颜色 · 影响区域GeoJSON" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="230" y="990" width="280" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- 下游 -->
+        <mxCell id="alert" value="下游：Alert 预警&#10;from-event 挂起" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="760" y="565" width="180" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="end" value="结束" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="305" y="1110" width="110" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- 连线 -->
+        <mxCell id="e_s_d1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="start" target="d1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d1_p1" value="新建 create" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d1" target="p1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d1_p2" value="更新 update" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d1" target="p2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d1_d2" value="变更状态" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d1" target="d2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d1_p5" value="删除 delete" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d1" target="p5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d1_d3" value="查询 / 展示" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d1" target="d3"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="560" y="660" /></Array></mxGeometry></mxCell>
+        <mxCell id="e_io1_p1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;dashed=1;" edge="1" parent="1" source="io1" target="p1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_io1_p2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;dashed=1;" edge="1" parent="1" source="io1" target="p2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d2_3a" value="1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d2" target="p3a"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d2_3b" value="2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d2" target="p3b"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d2_3c" value="3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d2" target="p3c"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_p1_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="p1" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_p2_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="p2" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_3a_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="p3a" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_3b_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="p3b" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_3c_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="p3c" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_p5_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="p5" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_db_d3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="db" target="d3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d3_q1" value="分页列表" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d3" target="q1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d3_q2" value="单条详情" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d3" target="q2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d3_q3" value="大屏最新" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d3" target="q3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d3_q4" value="地图标注" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d3" target="q4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_q1_vo" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="q1" target="vo"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_q2_vo" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="q2" target="vo"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_q3_vo" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="q3" target="vo"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_q4_vo" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="q4" target="vo"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_vo_end" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="vo" target="end"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_db_alert" value="作为预警来源" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;dashed=1;" edge="1" parent="1" source="db" target="alert"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

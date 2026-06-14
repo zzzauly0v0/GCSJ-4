@@ -1,0 +1,73 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="GisDataController流程图" id="gis-flow">
+    <mxGraphModel dx="1100" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1150" pageHeight="1050" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="start" value="开始 · 空间数据请求" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="500" y="30" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="d1" value="数据类型 ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="510" y="120" width="160" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="d2" value="行政级别 level ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="80" y="260" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="r1" value="按省过滤" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="40" y="400" width="100" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" value="按 parent 过滤市" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="150" y="400" width="140" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="按 parent 过滤县" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="300" y="400" width="140" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="r4" value="取全部河流" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="510" y="290" width="160" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d3" value="type ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="900" y="255" width="150" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="r5" value="按 type 过滤" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="820" y="400" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="r6" value="取全部居民点" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="980" y="400" width="130" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db" value="gis 空间数据&#10;(行政区/河流/居民点)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="480" y="520" width="220" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="p" value="转换为 GeoJSON FeatureCollection" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="470" y="640" width="240" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="vo" value="Map&lt;String,Object&gt; 输出 · GeoJSON" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="460" y="720" width="260" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="end" value="结束 · 供前端地图渲染" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="490" y="830" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_s_d1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="start" target="d1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d1_d2" value="行政区 regions" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d1" target="d2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d1_r4" value="河流 rivers" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d1" target="r4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d1_d3" value="居民点 settlements" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d1" target="d3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d2_r1" value="1 省" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d2" target="r1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d2_r2" value="2 市" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d2" target="r2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d2_r3" value="3 县" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d2" target="r3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d3_r5" value="city/county/town" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d3" target="r5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_d3_r6" value="未传" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d3" target="r6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_r1_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="r1" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_r2_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="r2" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_r3_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="r3" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_r4_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="r4" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_r5_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="r5" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_r6_db" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="r6" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_db_p" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="db" target="p"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_p_vo" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="p" target="vo"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_vo_end" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="vo" target="end"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
