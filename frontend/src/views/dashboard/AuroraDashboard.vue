@@ -56,6 +56,13 @@
     </section>
 
     <!-- ============================================================
+         TIMELINE — 历史回放控制 (2022-09-05 泸定地震窗口)
+    ============================================================ -->
+    <section class="timeline-section">
+      <AuTimelinePlayer />
+    </section>
+
+    <!-- ============================================================
          KPI ROW
     ============================================================ -->
     <section class="kpi-row">
@@ -102,6 +109,23 @@
               <label class="map-toggle">
                 <input type="checkbox" v-model="scLayerToggle.settlement" @change="syncScLayer('settlement')" />
                 <span>居民点</span>
+              </label>
+              <span class="toggle-divider"></span>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="replayToggle.heatmap" @change="syncReplayLayer('heatmap')" />
+                <span>雨量热力</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="replayToggle.stations" @change="syncReplayLayer('stations')" />
+                <span>气象站</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="replayToggle.quake" @change="syncReplayLayer('quake')" />
+                <span>震中</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="replayToggle.impact" @change="syncReplayLayer('impact')" />
+                <span>受灾范围</span>
               </label>
             </div>
             <div class="map-legend">
@@ -234,10 +258,17 @@ import dayjs from 'dayjs'
 import * as echarts from 'echarts'
 
 import { useAlertStore } from '@/store/alert'
+import { useReplayStore } from '@/store/replay'
 import { apiDisasterGeoJson } from '@/api/disaster'
 import { apiAlertGeoJson } from '@/api/alert'
 import { apiRegionsGeoJson, apiRiversGeoJson, apiSettlementsGeoJson } from '@/api/gis'
+import {
+  apiReplayAlerts,
+  apiReplayEvents,
+  apiReplaySnapshot,
+} from '@/api/replay'
 import { useMap } from '@/hooks/useMap'
+import { useReplayLayers } from '@/hooks/useReplayLayers'
 
 import VectorLayer from 'ol/layer/Vector'
 import VectorSource from 'ol/source/Vector'
@@ -249,8 +280,10 @@ import AuCard from '@/components/aurora/AuCard.vue'
 import AuSelect from '@/components/aurora/AuSelect.vue'
 import AuButton from '@/components/aurora/AuButton.vue'
 import AuKpiCard from '@/components/aurora/AuKpiCard.vue'
+import AuTimelinePlayer from '@/components/aurora/AuTimelinePlayer.vue'
 
 const alertStore = useAlertStore()
+const replayStore = useReplayStore()
 
 // ---------- Map ----------
 // 默认聚焦四川 (102.7°E, 30.65°N), 大屏地图框已放大到主视觉区
@@ -275,6 +308,14 @@ const { map: olMapRef, loadGeoJson } = useMap(mapEl, {
     { code: 'biz_alerts',    type: 'vector', visible: true, zIndex: 31 },
   ],
 })
+
+// 回放专题图层 (雨量热力 / 气象站 / 地震 / 事件影响)
+const replayLayers = useReplayLayers(olMapRef)
+const replayToggle = ref({ heatmap: true, stations: true, quake: true, impact: true })
+function syncReplayLayer(key) {
+  replayLayers.toggle(key, replayToggle.value[key])
+  if (key === 'impact') replayLayers.toggle('eventDot', replayToggle.value[key])
+}
 
 // 四川专题图层 (动态挂到地图实例上, 不走 useMap 注册表)
 const scLayerToggle = ref({ province: true, city: false, river: true, settlement: false })
@@ -625,16 +666,44 @@ function formatTime(t) {
 }
 
 // ---------- Lifecycle ----------
+/**
+ * reloadAll — 按 replayStore.virtualNow (虚拟当前时刻) 拉数据
+ * 原 fetchLatest / apiAlertGeoJson 的实时数据接口在回放模式下不再使用,
+ * 全部由 /api/replay/* 按虚拟时刻过滤后返回
+ */
 async function reloadAll() {
-  try { await alertStore.fetchLatest(20) } catch (_) {}
+  await replayStore.init()
+  const at = replayStore.virtualNowIso
+  if (!at) return
   try {
-    const [alertsGeo, disastersGeo] = await Promise.all([
-      apiAlertGeoJson().catch(() => ({ features: [] })),
-      apiDisasterGeoJson().catch(() => ({ features: [] })),
+    const [alerts, eventsGeo, snapshot] = await Promise.all([
+      apiReplayAlerts(at, 20).catch(() => []),
+      apiReplayEvents(at).catch(() => ({ features: [] })),
+      apiReplaySnapshot(at).catch(() => null),
     ])
-    loadGeoJson('alerts', alertsGeo)
-    loadGeoJson('disasters', disastersGeo)
-    eventCount.value = disastersGeo?.features?.length || 0
+    // 把 replay 数据灌进 alertStore.latest, 现有图表/列表零改动复用
+    alertStore.latest = alerts.map(a => ({
+      id: a.id,
+      code: a.code,
+      title: a.title,
+      content: a.content,
+      level: a.level,
+      status: 1,
+      triggeredAt: a.triggered_at,
+      region: a.region_code,
+      disasterType: a.event_type,
+    }))
+    loadGeoJson('disasters', eventsGeo)
+    loadGeoJson('alerts', { type: 'FeatureCollection', features: [] })
+    eventCount.value = snapshot?.activeEvents ?? eventsGeo?.features?.length ?? 0
+    // 同步回放专题图层 (雨量热力 / 气象站 / 震中 / 受灾范围)
+    replayLayers.refresh(at)
+    // 用快照里最大区域 1h 雨更新 sensor 卡
+    if (snapshot?.rainByRegion?.length) {
+      const top = snapshot.rainByRegion[0]
+      sensorReadings.value[0].value = (top.rainfall_1h ?? 0).toFixed(1)
+      sensorReadings.value[4].value = String(Math.round(60 + (top.rainfall_24h ?? 0) * 0.4))
+    }
   } catch (_) {}
   renderCharts()
 }
@@ -643,11 +712,16 @@ onMounted(async () => {
   await reloadAll()
   await nextTick()
   // 等 useMap 内部 onMounted 把 olMapRef 拼出来再挂图层 (微任务跳一拍)
-  setTimeout(() => { attachSichuanLayers() }, 0)
+  setTimeout(async () => {
+    await attachSichuanLayers()
+    replayLayers.attach()
+    // 首屏立刻把当前虚拟时刻的专题数据画上
+    if (replayStore.virtualNowIso) replayLayers.refresh(replayStore.virtualNowIso)
+  }, 0)
   renderCharts()
   resizeFn = () => { trendChart?.resize(); pieChart?.resize() }
   window.addEventListener('resize', resizeFn)
-  sensorTimer = setInterval(refreshSensors, 3000)
+  // 回放模式下不再用 mock sensor 抖动, 由 reloadAll 在 virtualNow 变化时刷新
 })
 
 onBeforeUnmount(() => {
@@ -655,9 +729,20 @@ onBeforeUnmount(() => {
   if (sensorTimer) clearInterval(sensorTimer)
   trendChart?.dispose(); trendChart = null
   pieChart?.dispose();   pieChart = null
+  replayLayers.detach()
 })
 
 watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
+
+// 虚拟时间推进 -> 重新拉数据 (节流: 每 1s 最多一次, 避免高倍速狂调接口)
+let _replayDebounce = null
+watch(() => replayStore.virtualNow, () => {
+  if (_replayDebounce) return
+  _replayDebounce = setTimeout(() => {
+    _replayDebounce = null
+    reloadAll()
+  }, 1000)
+})
 </script>
 
 <style scoped>
@@ -671,6 +756,10 @@ watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
   flex-direction: column;
   gap: 18px;
   background: var(--au-bg-page);
+}
+
+.timeline-section {
+  width: 100%;
 }
 
 /* ============================================================
@@ -770,6 +859,12 @@ watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
   user-select: none;
 }
 .map-toggle input { accent-color: #6366F1; }
+.toggle-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--au-border, #E5E7EB);
+  margin: 0 4px;
+}
 .au-map-canvas {
   width: 100%;
   height: 100%;

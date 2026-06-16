@@ -48,6 +48,7 @@ public class WebSecurityConfig {
                                 "/api/regions/geojson",
                                 "/api/rivers/geojson",
                                 "/api/settlements/geojson",
+                                "/api/replay/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

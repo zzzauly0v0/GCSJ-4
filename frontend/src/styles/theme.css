@@ -46,7 +46,7 @@
   --signal-hazard-glow:rgba(255, 214, 10, 0.35);
 
   /* Crystal Blue — normal monitoring, data streams, scan lines */
-  --signal-crystal:    #00E5FF;
+  --signal-crystal:    #1c1e1f;
   --signal-crystal-dim:rgba(0, 229, 255, 0.12);
   --signal-crystal-glow:rgba(0, 229, 255, 0.35);
   --signal-crystal-ice: #7DF9FF;
@@ -80,7 +80,7 @@
   /* ================================================================
    * TEXT
    * ================================================================ */
-  --text-primary:      #E6F1FF;    /* main body copy — verified ≥4.5:1 on --bg-console */
+  --text-primary:      #101111;    /* main body copy — verified ≥4.5:1 on --bg-console */
   --text-secondary:    #7D9BB8;    /* secondary info */
   --text-tertiary:     #3D5A73;    /* muted labels */
   --text-data:         #7DF9FF;    /* data values, coordinates, sensor readings */

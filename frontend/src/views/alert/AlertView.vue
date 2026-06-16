@@ -1,5 +1,8 @@
 <template>
   <div class="alert-page">
+    <!-- ====== 时间轴: 与回放窗口绑定 ====== -->
+    <AuTimelineMini />
+
     <!-- ====== 顶部统计 ====== -->
     <div class="stats">
       <div v-for="s in statsData" :key="s.key" class="stat" :style="{'--c': s.color}">
@@ -94,13 +97,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   BellFilled, Clock, Location, Promotion, Refresh, CaretTop
 } from '@element-plus/icons-vue'
-import { apiAlertPage, apiAlertConfirm, apiAlertClose } from '@/api/alert'
+import { apiAlertConfirm, apiAlertClose } from '@/api/alert'
+import { apiReplayAlerts } from '@/api/replay'
+import { useReplayStore } from '@/store/replay'
 import { formatDateTime, levelMeta } from '@/utils/format'
+import AuTimelineMini from '@/components/aurora/AuTimelineMini.vue'
+
+const replayStore = useReplayStore()
 
 const rows = ref([])
 const total = ref(0)
@@ -134,25 +142,48 @@ function onTab(level) {
   loadPage()
 }
 
+/**
+ * 数据来源: 回放接口 (按虚拟时刻过滤)
+ * 不再走 /alerts 分页接口, 列表项由 ReplayController 返回的字段拼出
+ */
 async function loadPage() {
+  await replayStore.init()
+  const at = replayStore.virtualNowIso
+  if (!at) return
   loading.value = true
   try {
-    const data = await apiAlertPage(filter)
-    rows.value = data.records || []
-    total.value = data.total || 0
-    // 更新 stats (无 level 时整体抓取)
-    if (filter.level == null && filter.status == null) {
-      const all = await apiAlertPage({ page: 1, size: 200 })
-      stats.value = {
-        total: all.total || 0,
-        l1: (all.records || []).filter(r => r.level === 1).length,
-        l2: (all.records || []).filter(r => r.level === 2).length,
-        l3: (all.records || []).filter(r => r.level === 3).length,
-        l4: (all.records || []).filter(r => r.level === 4).length
-      }
+    const list = await apiReplayAlerts(at, 500)
+    const all = (list || []).map(a => ({
+      id: a.id,
+      code: a.code,
+      title: a.title,
+      content: a.content,
+      level: a.level,
+      status: 1,
+      triggeredAt: a.triggered_at,
+      longitude: a.lon,
+      latitude:  a.lat,
+      channels: ['in_site'],
+    }))
+    let filtered = all
+    if (filter.level != null) filtered = filtered.filter(r => r.level === filter.level)
+    total.value = filtered.length
+    rows.value  = filtered.slice((filter.page - 1) * filter.size, filter.page * filter.size)
+    stats.value = {
+      total: all.length,
+      l1: all.filter(r => r.level === 1).length,
+      l2: all.filter(r => r.level === 2).length,
+      l3: all.filter(r => r.level === 3).length,
+      l4: all.filter(r => r.level === 4).length,
     }
   } finally { loading.value = false }
 }
+
+let _alertDebounce = null
+watch(() => replayStore.virtualNow, () => {
+  if (_alertDebounce) return
+  _alertDebounce = setTimeout(() => { _alertDebounce = null; loadPage() }, 800)
+})
 
 async function onConfirm(row) {
   await ElMessageBox.confirm(`确认预警「${row.title}」?`, '确认操作', { type: 'warning' })
