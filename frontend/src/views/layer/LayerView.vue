@@ -63,7 +63,7 @@
       <el-tab-pane label="图层数据维护" name="crud">
         <el-card class="gcsj-card">
           <div class="header">
-            <span class="title">空间图层目录 (gis_layer)</span>
+            <span class="title">空间图层目录</span>
             <el-button type="primary" @click="onAdd">新增图层</el-button>
           </div>
           <el-table :data="rows" border size="small">
@@ -77,9 +77,10 @@
                 <el-switch v-model="row.visible" @change="onSwitchVisible(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="200">
+            <el-table-column label="操作" width="280">
               <template #default="{ row }">
                 <el-button size="small" @click="onEdit(row)">编辑</el-button>
+                <el-button size="small" type="success" @click="onPublish(row)">发布</el-button>
                 <el-button size="small" type="danger" @click="onDel(row)">删除</el-button>
               </template>
             </el-table-column>
@@ -98,6 +99,9 @@
             <el-form-item label="数据源 URL"><el-input v-model="form.sourceUrl" /></el-form-item>
             <el-form-item label="GeoServer 工作区"><el-input v-model="form.workspace" /></el-form-item>
             <el-form-item label="GeoServer 图层名"><el-input v-model="form.layerName" /></el-form-item>
+            <el-form-item label="PostGIS 表名">
+              <el-input v-model="form.pgTable" placeholder="如 biz_sensor，仅发布到 GeoServer 时使用" />
+            </el-form-item>
             <el-form-item label="样式"><el-input v-model="form.style" /></el-form-item>
             <el-form-item label="层级"><el-input-number v-model="form.zIndex" /></el-form-item>
             <el-form-item label="可见"><el-switch v-model="form.visible" /></el-form-item>
@@ -128,7 +132,7 @@ import GeoJSON from 'ol/format/GeoJSON'
 import { fromLonLat, toLonLat } from 'ol/proj'
 import { defaults as defaultControls, ScaleLine } from 'ol/control'
 import { Style, Stroke, Fill, Circle as CircleStyle, Text } from 'ol/style'
-import { apiLayerList, apiLayerCreate, apiLayerUpdate, apiLayerDelete } from '@/api/layer'
+import { apiLayerList, apiLayerCreate, apiLayerUpdate, apiLayerDelete, apiLayerPublish } from '@/api/layer'
 import { apiRegionsGeoJson, apiRiversGeoJson, apiSettlementsGeoJson } from '@/api/gis'
 
 /* ------------------------------ Tab ------------------------------ */
@@ -318,10 +322,10 @@ function zoomToSichuan() {
 /* ------------------------------ 数据维护 (CRUD) ------------------------------ */
 const rows = ref([])
 const dlg = ref(false)
-const form = reactive({ id: null, name: '', code: '', type: 'vector', sourceUrl: '', workspace: '', layerName: '', style: '', visible: true, zIndex: 0 })
+const form = reactive({ id: null, name: '', code: '', type: 'vector', sourceUrl: '', workspace: '', layerName: '', pgTable: '', style: '', visible: true, zIndex: 0 })
 
 async function loadCrud() { rows.value = await apiLayerList() }
-function reset() { Object.assign(form, { id: null, name: '', code: '', type: 'vector', sourceUrl: '', workspace: '', layerName: '', style: '', visible: true, zIndex: 0 }) }
+function reset() { Object.assign(form, { id: null, name: '', code: '', type: 'vector', sourceUrl: '', workspace: '', layerName: '', pgTable: '', style: '', visible: true, zIndex: 0 }) }
 function onAdd() { reset(); dlg.value = true }
 function onEdit(row) { Object.assign(form, row); dlg.value = true }
 async function onSave() {
@@ -340,6 +344,20 @@ async function onDel(row) {
 async function onSwitchVisible(row) {
   await apiLayerUpdate(row.id, row)
   ElMessage.success('已更新')
+}
+async function onPublish(row) {
+  try {
+    const { value: pgTable } = await ElMessageBox.prompt(
+      `将图层 [${row.name}] 发布到 GeoServer，请输入 PostGIS 表名`,
+      '发布到 GeoServer',
+      { inputPlaceholder: '如 biz_sensor', inputValue: row.pgTable || row.layerName || row.code || '' }
+    )
+    await apiLayerPublish(row.id, { pgTable })
+    ElMessage.success('发布成功')
+  } catch (e) {
+    if (e === 'cancel' || e?.action === 'cancel') return
+    ElMessage.error(`发布失败：${e?.message || e}`)
+  }
 }
 
 /* ------------------------------ 生命周期 ------------------------------ */
@@ -532,5 +550,35 @@ onBeforeUnmount(() => {
     flex: 1;
     overflow: auto;
   }
+}
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .layer-page { padding: 8px; height: auto; min-height: calc(100vh - 56px); }
+
+  .layer-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: auto;
+  }
+
+  .layer-side {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 12px;
+    font-size: 12px;
+  }
+
+  .layer-map-wrap {
+    height: 60vh;
+    min-height: 360px;
+  }
+
+  .header { flex-direction: column; gap: 6px; align-items: flex-start; }
+  .header .title { font-size: 14px; }
+
+  .layer-row .layer-meta { font-size: 10px; gap: 6px; }
+  .map-loading { font-size: 11px; padding: 4px 10px; }
 }
 </style>

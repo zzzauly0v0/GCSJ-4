@@ -14,43 +14,11 @@
         <div class="hero-text">
           <span class="au-pill-grad">气象 · 地质灾害监测</span>
           <h1 class="hero-title">
-            <span class="au-grad-text">实时态势</span>
-            <span class="hero-title-sub">综合研判平台</span>
+            <span class="au-grad-text">实时分析</span>
           </h1>
           <p class="hero-sub">
             综合气象观测、地质形变监测与空间分析，提供分级预警与决策支持
           </p>
-        </div>
-
-        <div class="hero-controls">
-          <div class="hero-control">
-            <label>区域</label>
-            <AuSelect
-              v-model="filterRegion"
-              :options="regionOptions"
-              placeholder="全部区域"
-              searchable
-            />
-          </div>
-          <div class="hero-control">
-            <label>时段</label>
-            <AuSelect
-              v-model="filterRange"
-              :options="rangeOptions"
-              placeholder="近 24 小时"
-            />
-          </div>
-          <div class="hero-control">
-            <label>灾种</label>
-            <AuSelect
-              v-model="filterType"
-              :options="typeOptions"
-              placeholder="全部灾种"
-            />
-          </div>
-          <AuButton variant="primary" size="md" @click="reloadAll">
-            刷新数据
-          </AuButton>
         </div>
       </div>
     </section>
@@ -85,7 +53,7 @@
     <section class="map-section">
       <AuCard
         title="四川省 · 空间监测态势"
-        subtitle="EPSG:3857 · OpenLayers · 省/市/县三级行政区 + 主要河流 + 实时灾害事件"
+        subtitle="EPSG:3857"
         gradient-border
         dot
         flat
@@ -278,7 +246,6 @@ import { fromLonLat } from 'ol/proj'
 
 import AuCard from '@/components/aurora/AuCard.vue'
 import AuSelect from '@/components/aurora/AuSelect.vue'
-import AuButton from '@/components/aurora/AuButton.vue'
 import AuKpiCard from '@/components/aurora/AuKpiCard.vue'
 import AuTimelinePlayer from '@/components/aurora/AuTimelinePlayer.vue'
 
@@ -423,31 +390,7 @@ async function syncScLayer(key) {
 }
 
 // ---------- Filters ----------
-const filterRegion = ref(null)
-const filterRange = ref('24h')
-const filterType = ref(null)
 const trendStackMode = ref('stack')
-
-const regionOptions = [
-  { value: 'sichuan',   label: '四川' },
-  { value: 'yunnan',    label: '云南' },
-  { value: 'gansu',     label: '甘肃' },
-  { value: 'guizhou',   label: '贵州' },
-  { value: 'shaanxi',   label: '陕西' },
-]
-const rangeOptions = [
-  { value: '6h',  label: '近 6 小时' },
-  { value: '24h', label: '近 24 小时' },
-  { value: '7d',  label: '近 7 天' },
-  { value: '30d', label: '近 30 天' },
-]
-const typeOptions = [
-  { value: 'landslide', label: '滑坡' },
-  { value: 'mudflow',   label: '泥石流' },
-  { value: 'collapse',  label: '崩塌' },
-  { value: 'subsidence', label: '地面沉降' },
-  { value: 'flood',     label: '洪涝' },
-]
 
 // ---------- Level meta ----------
 const LEVEL_COLORS = { 1: '#2563EB', 2: '#F59E0B', 3: '#F97316', 4: '#DC2626' }
@@ -1086,5 +1029,44 @@ watch(() => replayStore.virtualNow, () => {
 .sensor-unit {
   font-size: 10px;
   color: var(--au-text-tertiary);
+}
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .hero-title { font-size: 20px; }
+  .hero-title-sub { font-size: 14px; }
+  .hero-sub { font-size: 12px; }
+  .hero-controls { width: 100%; }
+  .hero-control { min-width: 100px; flex: 1; }
+
+  .kpi-row { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+
+  .map-section { display: block; }
+  .card-map { height: 360px !important; min-height: 320px !important; }
+
+  .body-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+    grid-template-areas: none !important;
+    gap: 10px !important;
+  }
+  .card-trend, .card-pie, .card-levels,
+  .card-list, .card-sensors {
+    min-height: 280px;
+  }
+
+  .level-grid { gap: 12px; }
+  .level-ring { width: 52px; height: 52px; }
+  .level-num { font-size: 16px; }
+
+  .alert-title { font-size: 12px; }
+  .alert-meta { gap: 8px; font-size: 10px; }
+}
+
+@media (max-width: 480px) {
+  .kpi-row { grid-template-columns: 1fr !important; }
+  .hero-title { font-size: 18px; }
 }
 </style>

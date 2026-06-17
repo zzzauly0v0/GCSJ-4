@@ -1,47 +1,45 @@
 /*
- * main.scss — Legacy compatibility shim
+ * main.scss — Legacy compatibility shim (Aurora Light)
  *
- * This file is kept for backward compatibility with components that still
- * reference old class names (.gcsj-card, .gcsj-page, etc.).
- * All legacy light-theme tokens are remapped to STORMWATCH dark system tokens.
+ * 老页面（gcsj-card / dash-panel / role-list / lvl-tag）仍然引用 var(--border)、
+ * var(--primary)、var(--text-1~4)、var(--alert-*) 这些旧 token。
+ * 这里把它们全部接到 aurora 灰阶 token 上，让旧页面一次性拿到统一样式。
  *
- * DO NOT add new styles here. Use src/styles/theme.css for design tokens,
+ * DO NOT add new styles here. Use src/styles/theme-aurora.css for design tokens,
  * and component-scoped styles for component-specific rules.
  */
 
-/* Remap legacy tokens to STORMWATCH tokens */
+/* Remap legacy tokens → aurora 灰阶 */
 :root {
-  /* Legacy alert colors → remapped to fluorescent storm variants */
-  --alert-blue: var(--level-1-color);
-  --alert-yellow: var(--level-2-color);
-  --alert-orange: var(--level-3-color);
-  --alert-red: var(--level-4-color);
+  /* 国标预警等级（沿用 aurora 状态色） */
+  --alert-blue:   #5F6368;
+  --alert-yellow: #F29900;
+  --alert-orange: #E8710A;
+  --alert-red:    #D93025;
 
-  /* 【已删除】--bg, --bg-soft, --panel, --panel-soft 等黑夜/控制台背景变量映射 */
-  --border: var(--border-panel);
-  --border-soft: var(--border-separator);
+  --border:       #E8EAED;
+  --border-soft:  #F1F3F4;
+  --bg:           rgb(248, 249, 252);
+  --bg-soft:      rgb(248, 249, 252);
+  --panel:        #FFFFFF;
+  --panel-soft:   rgb(248, 249, 252);
 
-  /* Legacy text tokens */
-  --text-1: var(--text-primary);
-  --text-2: var(--text-secondary);
-  --text-3: var(--text-tertiary);
-  --text-4: var(--text-disabled);
+  --text-1:       #202124;
+  --text-2:       #3C4043;
+  --text-3:       #5F6368;
+  --text-4:       #BDC1C6;
 
-  /* Legacy primary → crystal blue */
-  --primary: var(--signal-crystal);
-  --primary-soft: var(--signal-crystal-dim);
-  --primary-deep: #00B8CC;
-  --accent: #3fb950;
-  --accent-soft: rgba(63, 185, 80, 0.12);
+  --primary:      #3C4043;
+  --primary-soft: #F1F3F4;
+  --primary-deep: #202124;
+  --accent:       #1E8E3E;
+  --accent-soft:  #E6F4EA;
 
-  /* Legacy dash tokens */
-  --dash-border: var(--border-panel);
-  --dash-text-1: var(--text-primary);
-  --dash-text-2: var(--text-secondary);
-  --dash-text-3: var(--text-tertiary);
-  --dash-accent: var(--signal-crystal);
-
-  /* 【已删除】--shadow 相关的黑色/发光阴影变量 */
+  --dash-border:  #E8EAED;
+  --dash-text-1:  #202124;
+  --dash-text-2:  #3C4043;
+  --dash-text-3:  #5F6368;
+  --dash-accent:  #3C4043;
 }
 
 /* ================================================================

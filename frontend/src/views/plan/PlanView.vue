@@ -87,4 +87,14 @@ onMounted(load)
 .header { display: flex; justify-content: space-between; margin-bottom: 12px;
   .title { font-size: 16px; font-weight: 600; }
 }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    .title { font-size: 14px; }
+  }
+}
 </style>

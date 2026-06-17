@@ -299,4 +299,28 @@ onMounted(loadAll)
 .form-hint {
   font-size: 11px; color: var(--text-3); line-height: 1.4; margin-top: 2px;
 }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .dict-page {
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - 56px);
+    padding: 8px;
+    gap: 8px;
+  }
+  .type-pane {
+    width: 100%;
+    max-height: 220px;
+    .type-list { max-height: 160px; }
+  }
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+    .toolbar-left, .toolbar-right { width: 100%; }
+    .toolbar-right { justify-content: flex-end; }
+  }
+}
 </style>

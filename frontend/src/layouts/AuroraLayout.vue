@@ -3,19 +3,22 @@
     AuroraLayout — 学术云蓝全站布局
     白底 / 渐变顶栏 / 大字导航 / 柔和阴影 / 无扫描线、无暗色背景。
   -->
-  <div class="au-shell">
+  <div class="au-shell" :class="{ 'is-mobile-open': mobileNavOpen }">
 
     <!-- ================= 顶栏 ================= -->
     <header class="au-topbar">
       <div class="au-topbar-left">
+        <button class="au-hamburger" @click="toggleMobileNav" aria-label="菜单">
+          <el-icon :size="20"><Menu /></el-icon>
+        </button>
         <div class="au-brand">
           <div class="au-brand-mark">
             <svg viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
               <defs>
                 <linearGradient id="auBrandGrad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%"  stop-color="#6366F1" />
-                  <stop offset="55%" stop-color="#2563EB" />
-                  <stop offset="100%" stop-color="#06B6D4" />
+                  <stop offset="0%"  stop-color="#202124" />
+                  <stop offset="55%" stop-color="#3C4043" />
+                  <stop offset="100%" stop-color="#5F6368" />
                 </linearGradient>
               </defs>
               <path
@@ -78,8 +81,19 @@
     <!-- ================= 主体 ================= -->
     <div class="au-body">
 
+      <!-- 移动端遮罩 -->
+      <div
+        v-if="mobileNavOpen"
+        class="au-mobile-mask"
+        @click="closeMobileNav"
+      />
+
       <!-- 侧边导航 -->
-      <aside class="au-sidenav" :class="{ collapsed: appStore.sidebarCollapsed }">
+      <aside
+        class="au-sidenav"
+        :class="{ collapsed: appStore.sidebarCollapsed, 'mobile-open': mobileNavOpen }"
+        @click="onSidenavClick"
+      >
         <button class="au-collapse" @click="appStore.toggleSidebar">
           <el-icon :size="16"><Fold v-if="!appStore.sidebarCollapsed" /><Expand v-else /></el-icon>
         </button>
@@ -149,9 +163,9 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowDown, User, SwitchButton, BellFilled, Fold, Expand } from '@element-plus/icons-vue'
+import { ArrowDown, User, SwitchButton, BellFilled, Fold, Expand, Menu } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useAppStore } from '@/store/app'
 import { useUserStore } from '@/store/user'
@@ -165,6 +179,16 @@ const userStore = useUserStore()
 const alertStore = useAlertStore()
 
 useAlertSocket()
+
+// 移动端导航
+const mobileNavOpen = ref(false)
+function toggleMobileNav() { mobileNavOpen.value = !mobileNavOpen.value }
+function closeMobileNav() { mobileNavOpen.value = false }
+function onSidenavClick(e) {
+  if (e.target.closest('.au-nav-item')) closeMobileNav()
+}
+// 路由切换自动收起抽屉
+watch(() => route.path, () => { mobileNavOpen.value = false })
 
 // 时钟
 const utcTime = ref(dayjs().format('HH:mm:ss'))
@@ -185,9 +209,9 @@ const headerMetrics = computed(() => {
   const total = alertStore.latest.length
   const red = alertStore.latest.filter(a => a.level === 4).length
   return [
-    { key: 'alerts', label: '活跃预警', value: String(total).padStart(2, '0'), unit: '条', color: '#2563EB' },
-    { key: 'red',    label: '红色预警', value: String(red).padStart(2, '0'),    unit: '条', color: red > 0 ? '#DC2626' : '#94A3B8' },
-    { key: 'flow',   label: '数据流',   value: '24.7', unit: 'KB/s', color: '#06B6D4' },
+    { key: 'alerts', label: '活跃预警', value: String(total).padStart(2, '0'), unit: '条', color: '#202124' },
+    { key: 'red',    label: '红色预警', value: String(red).padStart(2, '0'),    unit: '条', color: red > 0 ? '#D93025' : '#80868B' },
+    { key: 'flow',   label: '数据流',   value: '24.7', unit: 'KB/s', color: '#3C4043' },
   ]
 })
 
@@ -197,7 +221,7 @@ const userRole = computed(() => userStore.roleCodes?.[0] || 'GUEST')
 const shortName = computed(() => (userStore.profile?.realName || userStore.profile?.username || 'U').slice(0, 1).toUpperCase())
 const envLabel = import.meta.env.MODE === 'production' ? 'PROD' : 'DEV'
 
-const coordLabel = computed(() => '104.0000°E · 35.0000°N · EPSG:3857')
+// const coordLabel = computed(() => '104.0000°E · 35.0000°N · EPSG:3857')
 
 // 菜单
 function canAccess(meta) {
@@ -249,7 +273,7 @@ async function handleCommand(cmd) {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background: var(--au-bg-page);
+  background: rgb(248, 249, 252);
   color: var(--au-text-primary);
   font-family: var(--au-font-sans);
 }
@@ -263,22 +287,12 @@ async function handleCommand(cmd) {
   justify-content: space-between;
   gap: 24px;
   padding: 0 24px;
-  background:
-    linear-gradient(135deg, rgba(238,242,255,0.95) 0%, rgba(219,234,254,0.92) 50%, rgba(224,242,254,0.95) 100%),
-    var(--au-bg-surface);
-  border-bottom: 1px solid #E0E7FF;
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--au-border-subtle);
   position: relative;
   z-index: 50;
-  backdrop-filter: saturate(140%);
 }
-.au-topbar::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: -1px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent 0%, #818CF8 30%, #38BDF8 70%, transparent 100%);
-  opacity: 0.5;
-}
+.au-topbar::after { content: none; }
 
 .au-topbar-left, .au-topbar-right {
   display: flex;
@@ -297,10 +311,10 @@ async function handleCommand(cmd) {
 .au-brand { display: flex; align-items: center; gap: 12px; }
 .au-brand-mark {
   width: 44px; height: 44px;
-  background: var(--au-bg-surface);
-  border-radius: var(--au-radius-md);
+  background: rgb(248, 249, 252);
+  border-radius: 16px;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 14px rgba(99,102,241,0.18), 0 0 0 1px #E0E7FF;
+  box-shadow: 0 1px 3px rgba(60,64,67,0.10), 0 0 0 1px var(--au-border-subtle);
 }
 .au-brand-text {
   display: flex; flex-direction: column; gap: 2px;
@@ -322,10 +336,9 @@ async function handleCommand(cmd) {
 .au-metric {
   display: flex; align-items: baseline; gap: 6px;
   padding: 8px 14px;
-  background: rgba(255,255,255,0.6);
-  border: 1px solid rgba(199,210,254,0.6);
-  border-radius: 999px;
-  backdrop-filter: blur(6px);
+  background: rgb(248, 249, 252);
+  border: 1px solid var(--au-border-subtle);
+  border-radius: 16px;
 }
 .au-metric-label {
   font-size: 12px;
@@ -353,10 +366,7 @@ async function handleCommand(cmd) {
   font-family: var(--au-font-num);
   font-size: 18px;
   font-weight: 700;
-  background: var(--au-grad-primary);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--au-text-strong);
   font-feature-settings: var(--au-font-feat);
   letter-spacing: 0.02em;
 }
@@ -370,8 +380,8 @@ async function handleCommand(cmd) {
   position: relative;
   width: 40px; height: 40px;
   border: none;
-  border-radius: var(--au-radius-md);
-  background: var(--au-bg-surface);
+  border-radius: 16px;
+  background: rgb(248, 249, 252);
   color: var(--au-text-secondary);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -379,8 +389,9 @@ async function handleCommand(cmd) {
   transition: all var(--au-dur-base) var(--au-ease);
 }
 .au-icon-btn:hover {
-  color: var(--au-info);
-  box-shadow: var(--au-shadow-sm), 0 0 0 1px #C7D2FE;
+  color: var(--au-text-strong);
+  background: var(--au-bg-hover);
+  box-shadow: var(--au-shadow-sm), 0 0 0 1px var(--au-border-base);
   transform: translateY(-1px);
 }
 .au-icon-btn[data-badge]:not([data-badge=""])::after {
@@ -392,9 +403,9 @@ async function handleCommand(cmd) {
   font-size: 10px;
   font-weight: 700;
   color: #FFFFFF;
-  background: linear-gradient(135deg, #F87171, #DC2626);
-  border-radius: 999px;
-  border: 2px solid var(--au-bg-surface);
+  background: #D93025;
+  border-radius: 16px;
+  border: 2px solid #FFFFFF;
   display: flex; align-items: center; justify-content: center;
   font-family: var(--au-font-num);
 }
@@ -402,26 +413,27 @@ async function handleCommand(cmd) {
 .au-user {
   display: flex; align-items: center; gap: 10px;
   padding: 6px 14px 6px 6px;
-  background: var(--au-bg-surface);
-  border-radius: 999px;
+  background: rgb(248, 249, 252);
+  border-radius: 16px;
   cursor: pointer;
   box-shadow: var(--au-shadow-xs), 0 0 0 1px var(--au-border-subtle);
   transition: all var(--au-dur-base) var(--au-ease);
 }
 .au-user:hover {
-  box-shadow: var(--au-shadow-sm), 0 0 0 1px #C7D2FE;
+  background: var(--au-bg-hover);
+  box-shadow: var(--au-shadow-sm), 0 0 0 1px var(--au-border-base);
   transform: translateY(-1px);
 }
 .au-user-avatar {
   width: 32px; height: 32px;
   border-radius: 50%;
-  background: var(--au-grad-primary);
+  background: #3C4043;
   color: #FFFFFF;
   font-family: var(--au-font-display);
   font-size: 14px;
   font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 10px rgba(37,99,235,0.30);
+  box-shadow: 0 2px 6px rgba(60,64,67,0.20);
 }
 .au-user-info { display: flex; flex-direction: column; line-height: 1.2; }
 .au-user-name { font-size: 13px; font-weight: 600; color: var(--au-text-strong); }
@@ -459,15 +471,19 @@ async function handleCommand(cmd) {
   top: 12px; right: 12px;
   width: 28px; height: 28px;
   border: 1px solid var(--au-border-subtle);
-  border-radius: var(--au-radius-sm);
-  background: var(--au-bg-surface);
+  border-radius: 16px;
+  background: rgb(248, 249, 252);
   color: var(--au-text-secondary);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   z-index: 2;
   transition: all var(--au-dur-fast) var(--au-ease);
 }
-.au-collapse:hover { color: var(--au-info); border-color: #C7D2FE; }
+.au-collapse:hover {
+  color: var(--au-text-strong);
+  background: var(--au-bg-hover);
+  border-color: var(--au-border-base);
+}
 
 .au-nav {
   margin-top: 50px;
@@ -494,7 +510,7 @@ async function handleCommand(cmd) {
   position: relative;
   display: flex; align-items: center; gap: 12px;
   padding: 10px 12px;
-  border-radius: var(--au-radius-md);
+  border-radius: 16px;
   color: var(--au-text-primary);
   font-size: 14px;
   font-weight: 500;
@@ -513,16 +529,15 @@ async function handleCommand(cmd) {
 }
 .au-nav-item:hover {
   background: var(--au-bg-hover);
-  color: var(--au-info);
+  color: var(--au-text-strong);
 }
 .au-nav-item.active {
-  background:
-    linear-gradient(90deg, rgba(99,102,241,0.10), rgba(6,182,212,0.04));
-  color: var(--au-info);
+  background: rgb(248, 249, 252);
+  color: var(--au-text-strong);
   font-weight: 600;
 }
 .au-nav-item.active .au-nav-bar {
-  background: var(--au-grad-primary);
+  background: #3C4043;
 }
 .au-nav-icon {
   flex-shrink: 0;
@@ -542,8 +557,8 @@ async function handleCommand(cmd) {
   font-size: 10px;
   font-weight: 700;
   color: #FFFFFF;
-  background: linear-gradient(135deg, #F87171, #DC2626);
-  border-radius: 999px;
+  background: #D93025;
+  border-radius: 16px;
   display: flex; align-items: center; justify-content: center;
   font-family: var(--au-font-num);
 }
@@ -551,18 +566,18 @@ async function handleCommand(cmd) {
 .au-nav-foot {
   margin: 0 12px 14px;
   padding: 12px;
-  background: var(--au-bg-subtle);
+  background: rgb(248, 249, 252);
   border: 1px solid var(--au-border-subtle);
-  border-radius: var(--au-radius-md);
+  border-radius: 16px;
   font-size: 12px;
   color: var(--au-text-secondary);
   display: flex; flex-direction: column; gap: 4px;
 }
 .au-foot-row { display: flex; align-items: center; gap: 6px; }
 .au-foot-dot {
-  width: 8px; height: 8px; border-radius: 999px;
-  background: #10B981;
-  box-shadow: 0 0 0 3px rgba(16,185,129,0.20);
+  width: 8px; height: 8px; border-radius: 16px;
+  background: #1E8E3E;
+  box-shadow: 0 0 0 3px rgba(30,142,62,0.18);
 }
 .au-foot-time {
   font-family: var(--au-font-num);
@@ -583,7 +598,7 @@ async function handleCommand(cmd) {
   flex: 1;
   display: flex; flex-direction: column;
   min-width: 0;
-  background: var(--au-bg-page);
+  background: rgb(248, 249, 252);
   overflow: hidden;
 }
 .au-breadcrumb {
@@ -591,7 +606,7 @@ async function handleCommand(cmd) {
   height: 44px;
   padding: 0 24px;
   display: flex; align-items: center; justify-content: space-between;
-  background: var(--au-bg-surface);
+  background: #FFFFFF;
   border-bottom: 1px solid var(--au-border-subtle);
   font-size: 13px;
 }
@@ -610,5 +625,134 @@ async function handleCommand(cmd) {
   flex: 1;
   overflow: auto;
   min-height: 0;
+}
+
+/* ============ HAMBURGER (默认隐藏，移动端显示) ============ */
+.au-hamburger {
+  display: none;
+  width: 40px; height: 40px;
+  border: none;
+  border-radius: 14px;
+  background: rgb(248, 249, 252);
+  color: var(--au-text-secondary);
+  cursor: pointer;
+  align-items: center; justify-content: center;
+  box-shadow: var(--au-shadow-xs), 0 0 0 1px var(--au-border-subtle);
+  transition: all var(--au-dur-base) var(--au-ease);
+  margin-right: 6px;
+}
+.au-hamburger:hover {
+  color: var(--au-text-strong);
+  background: var(--au-bg-hover);
+}
+
+/* 移动端遮罩（默认不渲染，仅在 v-if 触发时存在） */
+.au-mobile-mask {
+  display: none;
+}
+
+/* ============ 平板适配（≤ 1024px） ============ */
+@media (max-width: 1024px) {
+  .au-topbar {
+    height: 60px;
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .au-topbar-center {
+    gap: 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .au-topbar-center::-webkit-scrollbar { display: none; }
+  .au-metric { padding: 6px 10px; }
+  .au-metric-value { font-size: 16px; }
+  .au-brand-sub { display: none; }
+  .au-clock-date { display: none; }
+  .au-sidenav { width: 200px; }
+  .au-sidenav.collapsed { width: 64px; }
+  .au-breadcrumb { padding: 0 16px; height: 40px; }
+}
+
+/* ============ 移动端适配（≤ 768px） ============ */
+@media (max-width: 768px) {
+  .au-hamburger { display: flex; }
+
+  .au-topbar {
+    height: 56px;
+    padding: 0 12px;
+    gap: 8px;
+  }
+  /* 顶栏中部指标在移动端隐藏，腾出空间给品牌 + 时钟 */
+  .au-topbar-center { display: none; }
+
+  .au-brand-mark { width: 36px; height: 36px; border-radius: 12px; }
+  .au-brand-mark svg { width: 26px; height: 26px; }
+  .au-brand-name { font-size: 16px; }
+  .au-brand-text { gap: 0; }
+
+  .au-clock-time { font-size: 14px; }
+  .au-icon-btn { width: 36px; height: 36px; border-radius: 12px; }
+
+  /* 用户区只保留头像 */
+  .au-user { padding: 4px; gap: 0; border-radius: 50%; }
+  .au-user-info { display: none; }
+  .au-user-caret { display: none; }
+  .au-user-avatar { width: 30px; height: 30px; font-size: 12px; }
+
+  /* 侧边栏改成抽屉（默认隐藏，开启时滑入） */
+  .au-sidenav {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    bottom: 0;
+    width: 260px !important;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform var(--au-dur-base) var(--au-ease);
+    box-shadow: 0 8px 24px rgba(60, 64, 67, 0.14);
+  }
+  .au-sidenav.mobile-open {
+    transform: translateX(0);
+  }
+  /* 移动端不显示折叠按钮（直接靠遮罩关闭） */
+  .au-collapse { display: none; }
+  .au-nav { margin-top: 12px; }
+
+  /* 遮罩 */
+  .au-mobile-mask {
+    display: block;
+    position: fixed;
+    top: 56px;
+    left: 0; right: 0; bottom: 0;
+    background: rgba(32, 33, 36, 0.42);
+    z-index: 55;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    animation: au-mask-fade var(--au-dur-base) var(--au-ease);
+  }
+  @keyframes au-mask-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .au-breadcrumb {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  .au-bc-coord { display: none; }
+
+  .au-page {
+    padding: 0;
+  }
+}
+
+/* ============ 小屏适配（≤ 480px） ============ */
+@media (max-width: 480px) {
+  .au-topbar { padding: 0 8px; gap: 6px; }
+  .au-brand-text { display: none; }
+  .au-icon-btn { width: 34px; height: 34px; }
+  .au-clock { display: none; }
+  .au-sidenav { width: 86vw !important; }
 }
 </style>

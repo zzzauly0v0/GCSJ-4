@@ -708,4 +708,34 @@ onBeforeUnmount(() => {
   font-size: 9px;
   color: var(--text-tertiary);
 }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 1024px) {
+  .dash-grid { grid-template-columns: 1fr 1fr; }
+  .col:nth-child(2) { grid-column: 1 / -1; order: -1; }
+}
+
+@media (max-width: 768px) {
+  .monitor-root {
+    height: auto;
+    overflow: visible;
+    padding: 8px;
+    gap: 8px;
+  }
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .dash-grid {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+  .col {
+    overflow: visible;
+    min-height: 0;
+  }
+  .col:nth-child(2) { order: 0; }
+  .alert-list { max-height: 280px; }
+}
+
+@media (max-width: 480px) {
+  .kpi-row { grid-template-columns: 1fr; }
+}
 </style>

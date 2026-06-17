@@ -33,4 +33,12 @@
 }
 .nf-title { font-size: 18px; letter-spacing: 6px; color: #94A3B8; margin: 16px 0 8px; }
 .nf-sub { font-size: 13px; color: #64748B; margin-bottom: 32px; }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .nf-card { width: 88vw; padding: 40px 24px; }
+  .nf-code { font-size: 72px; }
+  .nf-title { font-size: 16px; letter-spacing: 4px; }
+  .nf-sub { font-size: 12px; margin-bottom: 24px; }
+}
 </style>

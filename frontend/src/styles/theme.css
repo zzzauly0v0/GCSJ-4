@@ -91,12 +91,9 @@
   /* ================================================================
    * TYPOGRAPHY — Font stacks (NEVER use system-ui / Arial for data)
    * ================================================================ */
-  --font-mono:    'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', 'Roboto Mono',
-                   ui-monospace, 'Cascadia Code', monospace;
-  --font-display: 'Orbitron', 'Rajdhani', 'Michroma', 'Saira Condensed',
-                   'Bebas Neue', sans-serif;
-  --font-ui:      'Rajdhani', 'Noto Sans SC', 'Source Han Sans SC',
-                   'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono:    'Noto Sans SC', 'Open Sans', sans-serif;
+  --font-display: 'Noto Sans SC', 'Open Sans', sans-serif;
+  --font-ui:      'Noto Sans SC', 'Open Sans', sans-serif;
 
   /* ================================================================
    * SHADOWS & GLOW EFFECTS
@@ -127,9 +124,9 @@
   --space-xl:   28px;
   --space-2xl:  40px;
 
-  --panel-radius:   2px;   /* Industrial: almost no rounding */
-  --panel-radius-sm: 1px;
-  --clip-corner:    8px;   /* for clip-path cut corners */
+  --panel-radius:    16px;  /* 全局统一圆角 */
+  --panel-radius-sm: 16px;
+  --clip-corner:     8px;   /* for clip-path cut corners */
 
   /* ================================================================
    * GRID & NOISE BACKGROUND PARAMETERS
@@ -161,9 +158,9 @@
   /* ================================================================
    * SCROLLBAR
    * ================================================================ */
-  --scrollbar-track:  rgba(0, 229, 255, 0.04);
-  --scrollbar-thumb:  rgba(0, 229, 255, 0.20);
-  --scrollbar-thumb-hover: rgba(0, 229, 255, 0.38);
+  --scrollbar-track:  transparent;
+  --scrollbar-thumb:  rgb(99, 99, 99);
+  --scrollbar-thumb-hover: rgb(99, 99, 99);
 }
 
 /* ================================================================
