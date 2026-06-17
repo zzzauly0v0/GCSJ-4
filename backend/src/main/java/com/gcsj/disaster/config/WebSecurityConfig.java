@@ -45,6 +45,10 @@ public class WebSecurityConfig {
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/public/**",
+                                "/api/regions/geojson",
+                                "/api/rivers/geojson",
+                                "/api/settlements/geojson",
+                                "/api/replay/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

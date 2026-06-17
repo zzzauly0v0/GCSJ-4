@@ -14,45 +14,20 @@
         <div class="hero-text">
           <span class="au-pill-grad">气象 · 地质灾害监测</span>
           <h1 class="hero-title">
-            <span class="au-grad-text">实时态势</span>
-            <span class="hero-title-sub">综合研判平台</span>
+            <span class="au-grad-text">实时分析</span>
           </h1>
           <p class="hero-sub">
             综合气象观测、地质形变监测与空间分析，提供分级预警与决策支持
           </p>
         </div>
-
-        <div class="hero-controls">
-          <div class="hero-control">
-            <label>区域</label>
-            <AuSelect
-              v-model="filterRegion"
-              :options="regionOptions"
-              placeholder="全部区域"
-              searchable
-            />
-          </div>
-          <div class="hero-control">
-            <label>时段</label>
-            <AuSelect
-              v-model="filterRange"
-              :options="rangeOptions"
-              placeholder="近 24 小时"
-            />
-          </div>
-          <div class="hero-control">
-            <label>灾种</label>
-            <AuSelect
-              v-model="filterType"
-              :options="typeOptions"
-              placeholder="全部灾种"
-            />
-          </div>
-          <AuButton variant="primary" size="md" @click="reloadAll">
-            刷新数据
-          </AuButton>
-        </div>
       </div>
+    </section>
+
+    <!-- ============================================================
+         TIMELINE — 历史回放控制 (2022-09-05 泸定地震窗口)
+    ============================================================ -->
+    <section class="timeline-section">
+      <AuTimelinePlayer />
     </section>
 
     <!-- ============================================================
@@ -73,23 +48,60 @@
     </section>
 
     <!-- ============================================================
-         MAP — 空间监测态势
+         MAP — 空间监测态势 (四川省专题底图)
     ============================================================ -->
     <section class="map-section">
       <AuCard
-        title="空间监测态势"
-        subtitle="EPSG:3857 · OpenLayers"
+        title="四川省 · 空间监测态势"
+        subtitle="EPSG:3857"
         gradient-border
         dot
         flat
         class="card-map"
       >
         <template #extra>
-          <div class="map-legend">
-            <span class="lg-item"><span class="lg-dot" style="background:#DC2626" />红色</span>
-            <span class="lg-item"><span class="lg-dot" style="background:#F97316" />橙色</span>
-            <span class="lg-item"><span class="lg-dot" style="background:#F59E0B" />黄色</span>
-            <span class="lg-item"><span class="lg-dot" style="background:#3B82F6" />蓝色</span>
+          <div class="map-toolbar">
+            <div class="map-toggle-group">
+              <label class="map-toggle">
+                <input type="checkbox" v-model="scLayerToggle.province" @change="syncScLayer('province')" />
+                <span>省界</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="scLayerToggle.city" @change="syncScLayer('city')" />
+                <span>市州</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="scLayerToggle.river" @change="syncScLayer('river')" />
+                <span>河流</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="scLayerToggle.settlement" @change="syncScLayer('settlement')" />
+                <span>居民点</span>
+              </label>
+              <span class="toggle-divider"></span>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="replayToggle.heatmap" @change="syncReplayLayer('heatmap')" />
+                <span>雨量热力</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="replayToggle.stations" @change="syncReplayLayer('stations')" />
+                <span>气象站</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="replayToggle.quake" @change="syncReplayLayer('quake')" />
+                <span>震中</span>
+              </label>
+              <label class="map-toggle">
+                <input type="checkbox" v-model="replayToggle.impact" @change="syncReplayLayer('impact')" />
+                <span>受灾范围</span>
+              </label>
+            </div>
+            <div class="map-legend">
+              <span class="lg-item"><span class="lg-dot" style="background:#DC2626" />红色</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#F97316" />橙色</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#F59E0B" />黄色</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#3B82F6" />蓝色</span>
+            </div>
           </div>
         </template>
         <div ref="mapEl" class="au-map-canvas" />
@@ -214,24 +226,43 @@ import dayjs from 'dayjs'
 import * as echarts from 'echarts'
 
 import { useAlertStore } from '@/store/alert'
+import { useReplayStore } from '@/store/replay'
 import { apiDisasterGeoJson } from '@/api/disaster'
 import { apiAlertGeoJson } from '@/api/alert'
+import { apiRegionsGeoJson, apiRiversGeoJson, apiSettlementsGeoJson } from '@/api/gis'
+import {
+  apiReplayAlerts,
+  apiReplayEvents,
+  apiReplaySnapshot,
+} from '@/api/replay'
 import { useMap } from '@/hooks/useMap'
+import { useReplayLayers } from '@/hooks/useReplayLayers'
+
+import VectorLayer from 'ol/layer/Vector'
+import VectorSource from 'ol/source/Vector'
+import GeoJSON from 'ol/format/GeoJSON'
+import { Style, Stroke, Fill, Circle as CircleStyle, Text } from 'ol/style'
+import { fromLonLat } from 'ol/proj'
 
 import AuCard from '@/components/aurora/AuCard.vue'
 import AuSelect from '@/components/aurora/AuSelect.vue'
-import AuButton from '@/components/aurora/AuButton.vue'
 import AuKpiCard from '@/components/aurora/AuKpiCard.vue'
+import AuTimelinePlayer from '@/components/aurora/AuTimelinePlayer.vue'
 
 const alertStore = useAlertStore()
+const replayStore = useReplayStore()
 
 // ---------- Map ----------
+// 默认聚焦四川 (102.7°E, 30.65°N), 大屏地图框已放大到主视觉区
+const SC_CENTER = [102.7, 30.65]
+const SC_ZOOM = 6.6
+
 const mapEl = ref(null)
-const { loadGeoJson } = useMap(mapEl, {
-  center: [104, 35],
-  zoom: 5,
+const { map: olMapRef, loadGeoJson } = useMap(mapEl, {
+  center: SC_CENTER,
+  zoom: SC_ZOOM,
   // 简易内置注册表：OSM 底图 + 预警 / 灾害事件矢量层
-  // 后端 gis_layer 表如有自定义图层，可在 onMounted 之后通过 apiLayerList 扩展
+  // 四川行政区/河流/居民点四个矢量图层在 onMounted 后动态挂载
   layerRegistry: [
     {
       code: 'base_osm',
@@ -240,37 +271,126 @@ const { loadGeoJson } = useMap(mapEl, {
       visible: true,
       zIndex: 0,
     },
-    { code: 'biz_disasters', type: 'vector', visible: true, zIndex: 20 },
-    { code: 'biz_alerts',    type: 'vector', visible: true, zIndex: 30 },
+    { code: 'biz_disasters', type: 'vector', visible: true, zIndex: 30 },
+    { code: 'biz_alerts',    type: 'vector', visible: true, zIndex: 31 },
   ],
 })
 
-// ---------- Filters ----------
-const filterRegion = ref(null)
-const filterRange = ref('24h')
-const filterType = ref(null)
-const trendStackMode = ref('stack')
+// 回放专题图层 (雨量热力 / 气象站 / 地震 / 事件影响)
+const replayLayers = useReplayLayers(olMapRef)
+const replayToggle = ref({ heatmap: true, stations: true, quake: true, impact: true })
+function syncReplayLayer(key) {
+  replayLayers.toggle(key, replayToggle.value[key])
+  if (key === 'impact') replayLayers.toggle('eventDot', replayToggle.value[key])
+}
 
-const regionOptions = [
-  { value: 'sichuan',   label: '四川' },
-  { value: 'yunnan',    label: '云南' },
-  { value: 'gansu',     label: '甘肃' },
-  { value: 'guizhou',   label: '贵州' },
-  { value: 'shaanxi',   label: '陕西' },
+// 四川专题图层 (动态挂到地图实例上, 不走 useMap 注册表)
+const scLayerToggle = ref({ province: true, city: false, river: true, settlement: false })
+const scOlLayers = {}
+const geoFmt = new GeoJSON()
+
+function makeRegionStyle(strokeColor, strokeWidth, withLabel = false) {
+  return (feature, resolution) => {
+    const styles = [new Style({
+      stroke: new Stroke({ color: strokeColor, width: strokeWidth }),
+      fill: new Fill({ color: strokeColor + '0F' })
+    })]
+    if (withLabel && resolution < 4500) {
+      const name = feature.get('name')
+      if (name) {
+        styles.push(new Style({
+          text: new Text({
+            text: name,
+            font: '11px "PingFang SC", sans-serif',
+            fill: new Fill({ color: '#1E293B' }),
+            stroke: new Stroke({ color: 'rgba(255,255,255,0.85)', width: 3 })
+          })
+        }))
+      }
+    }
+    return styles
+  }
+}
+
+function makeRiverStyle() {
+  return new Style({ stroke: new Stroke({ color: '#0EA5E9', width: 2 }) })
+}
+
+function makeSettlementStyle() {
+  return (feature, resolution) => {
+    const styles = [new Style({
+      image: new CircleStyle({
+        radius: 4,
+        fill: new Fill({ color: '#F59E0B' }),
+        stroke: new Stroke({ color: '#1F2937', width: 1 })
+      })
+    })]
+    if (resolution < 3000) {
+      const name = feature.get('name')
+      if (name) {
+        styles.push(new Style({
+          text: new Text({
+            text: name,
+            font: '10px "PingFang SC", sans-serif',
+            fill: new Fill({ color: '#0F172A' }),
+            stroke: new Stroke({ color: 'rgba(255,255,255,0.85)', width: 2 }),
+            offsetY: -10
+          })
+        }))
+      }
+    }
+    return styles
+  }
+}
+
+const scLayerSpecs = [
+  { key: 'province',   zIndex: 10, fetcher: () => apiRegionsGeoJson({ level: 1, adcode: '510000' }), styleFn: makeRegionStyle('#0EA5E9', 2.4) },
+  { key: 'city',       zIndex: 11, fetcher: () => apiRegionsGeoJson({ level: 2, parent: '510000' }), styleFn: makeRegionStyle('#6366F1', 1.2, true) },
+  { key: 'river',      zIndex: 20, fetcher: () => apiRiversGeoJson(), styleFn: makeRiverStyle() },
+  { key: 'settlement', zIndex: 25, fetcher: () => apiSettlementsGeoJson(), styleFn: makeSettlementStyle() }
 ]
-const rangeOptions = [
-  { value: '6h',  label: '近 6 小时' },
-  { value: '24h', label: '近 24 小时' },
-  { value: '7d',  label: '近 7 天' },
-  { value: '30d', label: '近 30 天' },
-]
-const typeOptions = [
-  { value: 'landslide', label: '滑坡' },
-  { value: 'mudflow',   label: '泥石流' },
-  { value: 'collapse',  label: '崩塌' },
-  { value: 'subsidence', label: '地面沉降' },
-  { value: 'flood',     label: '洪涝' },
-]
+
+async function attachSichuanLayers() {
+  const olMap = olMapRef.value
+  if (!olMap) return
+  for (const spec of scLayerSpecs) {
+    const lyr = new VectorLayer({
+      source: new VectorSource(),
+      style: spec.styleFn,
+      visible: !!scLayerToggle.value[spec.key],
+      zIndex: spec.zIndex
+    })
+    scOlLayers[spec.key] = lyr
+    olMap.addLayer(lyr)
+    if (scLayerToggle.value[spec.key]) await loadSichuanLayer(spec)
+  }
+}
+
+async function loadSichuanLayer(spec) {
+  try {
+    const geo = await spec.fetcher()
+    const lyr = scOlLayers[spec.key]
+    if (!lyr || !geo) return
+    const feats = geoFmt.readFeatures(geo, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' })
+    lyr.getSource().clear()
+    lyr.getSource().addFeatures(feats)
+    lyr.set('loaded', true)
+  } catch (_) { /* 静默, 已由 request 拦截器提示 */ }
+}
+
+async function syncScLayer(key) {
+  const lyr = scOlLayers[key]
+  const visible = scLayerToggle.value[key]
+  if (!lyr) return
+  lyr.setVisible(visible)
+  if (visible && !lyr.get('loaded')) {
+    const spec = scLayerSpecs.find(s => s.key === key)
+    if (spec) await loadSichuanLayer(spec)
+  }
+}
+
+// ---------- Filters ----------
+const trendStackMode = ref('stack')
 
 // ---------- Level meta ----------
 const LEVEL_COLORS = { 1: '#2563EB', 2: '#F59E0B', 3: '#F97316', 4: '#DC2626' }
@@ -489,16 +609,44 @@ function formatTime(t) {
 }
 
 // ---------- Lifecycle ----------
+/**
+ * reloadAll — 按 replayStore.virtualNow (虚拟当前时刻) 拉数据
+ * 原 fetchLatest / apiAlertGeoJson 的实时数据接口在回放模式下不再使用,
+ * 全部由 /api/replay/* 按虚拟时刻过滤后返回
+ */
 async function reloadAll() {
-  try { await alertStore.fetchLatest(20) } catch (_) {}
+  await replayStore.init()
+  const at = replayStore.virtualNowIso
+  if (!at) return
   try {
-    const [alertsGeo, disastersGeo] = await Promise.all([
-      apiAlertGeoJson().catch(() => ({ features: [] })),
-      apiDisasterGeoJson().catch(() => ({ features: [] })),
+    const [alerts, eventsGeo, snapshot] = await Promise.all([
+      apiReplayAlerts(at, 20).catch(() => []),
+      apiReplayEvents(at).catch(() => ({ features: [] })),
+      apiReplaySnapshot(at).catch(() => null),
     ])
-    loadGeoJson('alerts', alertsGeo)
-    loadGeoJson('disasters', disastersGeo)
-    eventCount.value = disastersGeo?.features?.length || 0
+    // 把 replay 数据灌进 alertStore.latest, 现有图表/列表零改动复用
+    alertStore.latest = alerts.map(a => ({
+      id: a.id,
+      code: a.code,
+      title: a.title,
+      content: a.content,
+      level: a.level,
+      status: 1,
+      triggeredAt: a.triggered_at,
+      region: a.region_code,
+      disasterType: a.event_type,
+    }))
+    loadGeoJson('disasters', eventsGeo)
+    loadGeoJson('alerts', { type: 'FeatureCollection', features: [] })
+    eventCount.value = snapshot?.activeEvents ?? eventsGeo?.features?.length ?? 0
+    // 同步回放专题图层 (雨量热力 / 气象站 / 震中 / 受灾范围)
+    replayLayers.refresh(at)
+    // 用快照里最大区域 1h 雨更新 sensor 卡
+    if (snapshot?.rainByRegion?.length) {
+      const top = snapshot.rainByRegion[0]
+      sensorReadings.value[0].value = (top.rainfall_1h ?? 0).toFixed(1)
+      sensorReadings.value[4].value = String(Math.round(60 + (top.rainfall_24h ?? 0) * 0.4))
+    }
   } catch (_) {}
   renderCharts()
 }
@@ -506,10 +654,17 @@ async function reloadAll() {
 onMounted(async () => {
   await reloadAll()
   await nextTick()
+  // 等 useMap 内部 onMounted 把 olMapRef 拼出来再挂图层 (微任务跳一拍)
+  setTimeout(async () => {
+    await attachSichuanLayers()
+    replayLayers.attach()
+    // 首屏立刻把当前虚拟时刻的专题数据画上
+    if (replayStore.virtualNowIso) replayLayers.refresh(replayStore.virtualNowIso)
+  }, 0)
   renderCharts()
   resizeFn = () => { trendChart?.resize(); pieChart?.resize() }
   window.addEventListener('resize', resizeFn)
-  sensorTimer = setInterval(refreshSensors, 3000)
+  // 回放模式下不再用 mock sensor 抖动, 由 reloadAll 在 virtualNow 变化时刷新
 })
 
 onBeforeUnmount(() => {
@@ -517,9 +672,20 @@ onBeforeUnmount(() => {
   if (sensorTimer) clearInterval(sensorTimer)
   trendChart?.dispose(); trendChart = null
   pieChart?.dispose();   pieChart = null
+  replayLayers.detach()
 })
 
 watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
+
+// 虚拟时间推进 -> 重新拉数据 (节流: 每 1s 最多一次, 避免高倍速狂调接口)
+let _replayDebounce = null
+watch(() => replayStore.virtualNow, () => {
+  if (_replayDebounce) return
+  _replayDebounce = setTimeout(() => {
+    _replayDebounce = null
+    reloadAll()
+  }, 1000)
+})
 </script>
 
 <style scoped>
@@ -533,6 +699,10 @@ watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
   flex-direction: column;
   gap: 18px;
   background: var(--au-bg-page);
+}
+
+.timeline-section {
+  width: 100%;
 }
 
 /* ============================================================
@@ -609,8 +779,34 @@ watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
 .map-section { display: flex; }
 .card-map {
   flex: 1;
-  height: 380px;
-  min-height: 320px;
+  height: 600px;
+  min-height: 520px;
+}
+.map-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.map-toggle-group {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--au-text-secondary);
+}
+.map-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.map-toggle input { accent-color: #6366F1; }
+.toggle-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--au-border, #E5E7EB);
+  margin: 0 4px;
 }
 .au-map-canvas {
   width: 100%;
@@ -833,5 +1029,44 @@ watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
 .sensor-unit {
   font-size: 10px;
   color: var(--au-text-tertiary);
+}
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .hero-title { font-size: 20px; }
+  .hero-title-sub { font-size: 14px; }
+  .hero-sub { font-size: 12px; }
+  .hero-controls { width: 100%; }
+  .hero-control { min-width: 100px; flex: 1; }
+
+  .kpi-row { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+
+  .map-section { display: block; }
+  .card-map { height: 360px !important; min-height: 320px !important; }
+
+  .body-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+    grid-template-areas: none !important;
+    gap: 10px !important;
+  }
+  .card-trend, .card-pie, .card-levels,
+  .card-list, .card-sensors {
+    min-height: 280px;
+  }
+
+  .level-grid { gap: 12px; }
+  .level-ring { width: 52px; height: 52px; }
+  .level-num { font-size: 16px; }
+
+  .alert-title { font-size: 12px; }
+  .alert-meta { gap: 8px; font-size: 10px; }
+}
+
+@media (max-width: 480px) {
+  .kpi-row { grid-template-columns: 1fr !important; }
+  .hero-title { font-size: 18px; }
 }
 </style>

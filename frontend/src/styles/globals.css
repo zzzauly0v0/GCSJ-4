@@ -20,6 +20,31 @@
   padding: 0;
 }
 
+/* ================================================================
+ * GLOBAL FONT — Noto Sans SC + Open Sans for ALL UI text.
+ * Excludes icon fonts ([class*="icon"], .el-icon, .iconfont, etc.).
+ * ================================================================ */
+html, body, #app,
+div, span, p, a, button, input, textarea, select, label,
+h1, h2, h3, h4, h5, h6,
+li, td, th, dt, dd,
+.el-button, .el-input__inner, .el-textarea__inner,
+.el-menu-item, .el-sub-menu__title,
+.el-table th.el-table__cell, .el-table td.el-table__cell,
+.el-tag, .el-tooltip__popper, .el-message, .el-notification,
+.el-form-item__label, .el-checkbox__label, .el-radio__label,
+.el-select-dropdown__item, .el-dialog__title, .el-card__header,
+.el-pagination, .el-breadcrumb, .el-steps, .el-tabs__item,
+.el-descriptions, .el-statistic, .el-empty,
+.metric-xl, .metric-lg, .metric-sm, .metric-unit,
+.data-value, .data-coord, .data-id, .data-timestamp, .data-metric, .num-mono,
+.coord, .timestamp, .sys-id, .nav-label,
+.h-display-xl, .h-display-lg, .h-display-md,
+.panel-title-text, .axis-label, .status-text {
+  font-family: 'Noto Sans SC', 'Open Sans', sans-serif !important;
+  font-optical-sizing: auto;
+}
+
 html {
   height: 100%;
   background: var(--bg-void);
@@ -89,26 +114,26 @@ input, select, textarea { font: inherit; }
 }
 
 /* ================================================================
- * INDUSTRIAL SCROLLBARS
+ * SCROLLBARS — 全局统一灰色 rgb(99, 99, 99)
  * ================================================================ */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-color: rgb(99, 99, 99) transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 0;
+  background: rgb(99, 99, 99);
+  border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
+  background: rgb(99, 99, 99);
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
@@ -512,4 +537,124 @@ input, select, textarea { font: inherit; }
   border: 1px solid rgba(255, 45, 45, 0.35);
   animation: notif-flash 1200ms ease-in-out infinite;
   animation-delay: 1400ms;
+}
+
+/* ================================================================
+ * MOBILE RESPONSIVE — 全局移动端覆盖
+ * 仅作用于 Element Plus 组件 + 项目通用容器
+ * 各 View 内部的分栏布局需在自己的 scoped 样式里处理
+ * ================================================================ */
+
+/* 平板（≤1024px）：紧凑边距与字号 */
+@media (max-width: 1024px) {
+  .el-dialog { width: 80vw !important; max-width: 720px; }
+  .el-message-box { width: 80vw !important; max-width: 480px; }
+  .el-pagination .el-pagination__sizes,
+  .el-pagination .el-pagination__jump { display: none !important; }
+}
+
+/* 手机（≤768px）：核心断点 */
+@media (max-width: 768px) {
+  /* 全局缩放字号（Element Plus 默认 14px → 13px） */
+  html { font-size: 14px; }
+  body { font-size: 13px; }
+
+  /* 滚动条更细 */
+  ::-webkit-scrollbar { width: 4px !important; height: 4px !important; }
+
+  /* === Element Plus 对话框 / 抽屉 === */
+  .el-dialog {
+    width: 92vw !important;
+    margin: 5vh auto !important;
+    max-width: none;
+  }
+  .el-dialog__header { padding: 14px 16px 10px !important; }
+  .el-dialog__body { padding: 14px 16px !important; }
+  .el-dialog__footer { padding: 10px 16px 14px !important; }
+  .el-dialog__title { font-size: 15px !important; }
+
+  .el-drawer { width: 86vw !important; max-width: 360px; }
+  .el-drawer.rtl, .el-drawer.ltr { width: 86vw !important; }
+
+  .el-message-box { width: 88vw !important; }
+
+  /* === 表单：label 顶置 + 输入区全宽 === */
+  .el-form--inline { display: block !important; }
+  .el-form--inline .el-form-item {
+    display: block !important;
+    margin-right: 0 !important;
+    margin-bottom: 12px !important;
+  }
+  .el-form-item__label {
+    text-align: left !important;
+    width: auto !important;
+    padding-right: 0 !important;
+    padding-bottom: 4px !important;
+    line-height: 1.4 !important;
+  }
+  .el-form-item__content {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+  .el-form-item .el-input,
+  .el-form-item .el-select,
+  .el-form-item .el-cascader,
+  .el-form-item .el-date-editor { width: 100% !important; }
+
+  /* 表单按钮组在小屏自动换行 */
+  .el-form-item--default + .el-form-item--default .el-button { margin-left: 0 !important; }
+  .el-form-item__content > .el-button + .el-button { margin-left: 6px !important; }
+
+  /* === 表格：横向滚动 + 紧凑行高 === */
+  .el-table { font-size: 12px !important; }
+  .el-table th.el-table__cell,
+  .el-table td.el-table__cell { padding: 6px 4px !important; }
+  .el-table .cell { padding: 0 6px !important; }
+
+  /* 包裹 el-table 的容器自动横向滚动 */
+  .el-table__inner-wrapper { overflow-x: auto; }
+
+  /* === 分页器：仅保留上下页 + 当前页 === */
+  .el-pagination {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    justify-content: center !important;
+  }
+  .el-pagination .el-pagination__total,
+  .el-pagination .el-pagination__sizes,
+  .el-pagination .el-pagination__jump,
+  .el-pagination .el-pagination__goto { display: none !important; }
+  .el-pager li { min-width: 28px !important; height: 28px !important; line-height: 28px !important; font-size: 12px !important; }
+
+  /* === 卡片 / 标签 / 按钮：紧凑化 === */
+  .el-card__header { padding: 12px 14px !important; }
+  .el-card__body { padding: 14px !important; }
+
+  .el-tabs__item { padding: 0 10px !important; font-size: 13px !important; }
+  .el-tabs__nav-wrap { padding: 0 8px !important; }
+
+  .el-button--default { padding: 8px 12px !important; font-size: 12px !important; }
+  .el-button--small { padding: 6px 10px !important; }
+  .el-button-group .el-button { padding: 6px 8px !important; }
+
+  .el-tag { font-size: 11px !important; padding: 0 6px !important; height: 22px !important; line-height: 20px !important; }
+
+  .el-input__inner { font-size: 13px !important; }
+
+  /* === 下拉 / 弹层 === */
+  .el-popper, .el-select__popper, .el-dropdown__popper { max-width: 92vw !important; }
+
+  /* === 通用页面内边距压缩 === */
+  .au-page { padding: 0 !important; }
+  .page-pad,
+  .container,
+  [class*="page-"] { padding-left: 12px; padding-right: 12px; }
+}
+
+/* 小屏（≤480px）：极紧凑 */
+@media (max-width: 480px) {
+  .el-dialog { width: 96vw !important; margin: 3vh auto !important; }
+  .el-button { padding: 6px 10px !important; }
+  .el-table { font-size: 11px !important; }
 }

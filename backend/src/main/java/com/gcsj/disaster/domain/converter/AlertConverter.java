@@ -17,6 +17,7 @@ public class AlertConverter {
     private final DisasterEventRepository disasterEventRepository;
 
     public AlertVO toVO(Alert a) {
+        // 预警事件的前端数据推送
         if (a == null) return null;
         AlertVO vo = new AlertVO();
         vo.setId(a.getId());

@@ -15,39 +15,41 @@
       </span>
     </button>
 
-    <transition name="au-pop">
-      <div v-if="open" class="au-select-panel" :style="panelStyle">
-        <div v-if="searchable" class="au-select-search">
-          <input
-            v-model="query"
-            type="text"
-            class="au-select-search-input"
-            :placeholder="searchPlaceholder"
-            @click.stop
-          />
-        </div>
-        <div class="au-select-options">
-          <div
-            v-for="opt in filtered"
-            :key="opt.value"
-            class="au-select-option"
-            :class="{ active: opt.value === modelValue }"
-            @click="pick(opt)"
-          >
-            <span class="au-select-option-label">{{ opt.label }}</span>
-            <svg v-if="opt.value === modelValue" viewBox="0 0 12 12" width="12" height="12" class="au-select-check">
-              <path d="M2 6.5L5 9.5L10 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
+    <Teleport to="body">
+      <transition name="au-pop">
+        <div v-if="open" class="au-select-panel au-select-panel--floating" :style="panelStyle" ref="panelEl">
+          <div v-if="searchable" class="au-select-search">
+            <input
+              v-model="query"
+              type="text"
+              class="au-select-search-input"
+              :placeholder="searchPlaceholder"
+              @click.stop
+            />
           </div>
-          <div v-if="filtered.length === 0" class="au-select-empty">无匹配项</div>
+          <div class="au-select-options">
+            <div
+              v-for="opt in filtered"
+              :key="opt.value"
+              class="au-select-option"
+              :class="{ active: opt.value === modelValue }"
+              @click="pick(opt)"
+            >
+              <span class="au-select-option-label">{{ opt.label }}</span>
+              <svg v-if="opt.value === modelValue" viewBox="0 0 12 12" width="12" height="12" class="au-select-check">
+                <path d="M2 6.5L5 9.5L10 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+            <div v-if="filtered.length === 0" class="au-select-empty">无匹配项</div>
+          </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 
 const props = defineProps({
   modelValue: { type: [String, Number, null], default: null },
@@ -63,6 +65,8 @@ const emit = defineEmits(['update:modelValue', 'change'])
 const open = ref(false)
 const query = ref('')
 const rootEl = ref(null)
+const panelEl = ref(null)
+const panelPos = ref({ top: 0, left: 0, width: 0 })
 
 const current = computed(() =>
   props.options.find(o => o.value === props.modelValue)
@@ -75,13 +79,28 @@ const filtered = computed(() => {
 })
 
 const panelStyle = computed(() => ({
-  width: typeof props.width === 'number' ? `${props.width}px` : props.width,
+  position: 'fixed',
+  top: `${panelPos.value.top}px`,
+  left: `${panelPos.value.left}px`,
+  width: typeof props.width === 'number'
+    ? `${props.width}px`
+    : (props.width === '100%' ? `${panelPos.value.width}px` : props.width),
+  zIndex: 9999,
 }))
+
+function updatePosition() {
+  if (!rootEl.value) return
+  const r = rootEl.value.getBoundingClientRect()
+  panelPos.value = { top: r.bottom + 6, left: r.left, width: r.width }
+}
 
 function toggle() {
   if (props.disabled) return
   open.value = !open.value
-  if (open.value) query.value = ''
+  if (open.value) {
+    query.value = ''
+    nextTick(updatePosition)
+  }
 }
 
 function pick(opt) {
@@ -91,12 +110,26 @@ function pick(opt) {
 }
 
 function onOutside(e) {
-  if (!rootEl.value) return
-  if (!rootEl.value.contains(e.target)) open.value = false
+  if (!open.value) return
+  if (rootEl.value?.contains(e.target)) return
+  if (panelEl.value?.contains(e.target)) return
+  open.value = false
 }
 
-onMounted(() => document.addEventListener('mousedown', onOutside))
-onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
+function onScrollOrResize() {
+  if (open.value) updatePosition()
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', onOutside)
+  window.addEventListener('scroll', onScrollOrResize, true)
+  window.addEventListener('resize', onScrollOrResize)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', onOutside)
+  window.removeEventListener('scroll', onScrollOrResize, true)
+  window.removeEventListener('resize', onScrollOrResize)
+})
 
 watch(() => props.disabled, (v) => { if (v) open.value = false })
 </script>
@@ -120,7 +153,7 @@ watch(() => props.disabled, (v) => { if (v) open.value = false })
   color: var(--au-text-primary);
   background: var(--au-bg-surface);
   border: 1.5px solid transparent;
-  border-radius: var(--au-radius-md);
+  border-radius: 16px;
   cursor: pointer;
   background-image:
     linear-gradient(var(--au-bg-surface), var(--au-bg-surface)),
@@ -161,48 +194,47 @@ watch(() => props.disabled, (v) => { if (v) open.value = false })
 
 .au-select-caret {
   display: inline-flex;
-  color: var(--au-info);
+  color: var(--au-text-secondary);
   transition: transform var(--au-dur-base) var(--au-ease);
 }
 .au-select-caret.open {
   transform: rotate(180deg);
 }
 
+</style>
+
+<!-- Non-scoped: panel is teleported to <body>, scoped styles wouldn't apply -->
+<style>
 .au-select-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 50;
   background:
-    linear-gradient(var(--au-bg-surface), var(--au-bg-surface)) padding-box,
-    var(--au-grad-border) border-box;
+    linear-gradient(var(--au-bg-surface, #fff), var(--au-bg-surface, #fff)) padding-box,
+    var(--au-grad-border, linear-gradient(180deg, #DADCE0, #DADCE0)) border-box;
   border: 1.5px solid transparent;
-  border-radius: var(--au-radius-md);
-  box-shadow: var(--au-shadow-lg);
+  border-radius: 16px;
+  box-shadow: var(--au-shadow-lg, 0 12px 32px rgba(60, 64, 67, 0.10));
   overflow: hidden;
-  min-width: 100%;
+  font-family: 'Noto Sans SC', 'Open Sans', sans-serif;
 }
 
 .au-select-search {
   padding: 8px;
-  border-bottom: 1px solid var(--au-border-subtle);
-  background: var(--au-bg-subtle);
+  border-bottom: 1px solid var(--au-border-subtle, #E5E7EB);
+  background: var(--au-bg-subtle, #F8FAFC);
 }
 .au-select-search-input {
   width: 100%;
   padding: 6px 10px;
   font-size: 12px;
-  color: var(--au-text-primary);
-  background: var(--au-bg-surface);
-  border: 1px solid var(--au-border-base);
-  border-radius: var(--au-radius-sm);
+  color: var(--au-text-primary, #0F172A);
+  background: var(--au-bg-surface, #fff);
+  border: 1px solid var(--au-border-base, #DADCE0);
+  border-radius: 16px;
   outline: none;
-  transition: border-color var(--au-dur-fast) var(--au-ease),
-              box-shadow var(--au-dur-fast) var(--au-ease);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .au-select-search-input:focus {
-  border-color: var(--au-border-focus);
-  box-shadow: var(--au-shadow-glow);
+  border-color: var(--au-border-focus, #5F6368);
+  box-shadow: var(--au-shadow-glow, 0 0 0 3px rgba(60, 64, 67, 0.10));
 }
 
 .au-select-options {
@@ -218,37 +250,35 @@ watch(() => props.disabled, (v) => { if (v) open.value = false })
   gap: 8px;
   padding: 8px 10px;
   font-size: 13px;
-  color: var(--au-text-primary);
-  border-radius: var(--au-radius-sm);
+  color: var(--au-text-primary, #3C4043);
+  border-radius: 16px;
   cursor: pointer;
-  transition: background var(--au-dur-fast) var(--au-ease),
-              color var(--au-dur-fast) var(--au-ease);
+  transition: background 150ms ease, color 150ms ease;
 }
 .au-select-option:hover {
-  background: var(--au-bg-hover);
-  color: var(--au-info);
+  background: var(--au-bg-hover, #E8EAED);
+  color: var(--au-text-strong, #202124);
 }
 .au-select-option.active {
-  background: var(--au-info-soft);
-  color: var(--au-info);
+  background: var(--au-info-soft, #F1F3F4);
+  color: var(--au-text-strong, #202124);
   font-weight: 600;
 }
 .au-select-check {
-  color: var(--au-info);
+  color: var(--au-text-strong, #202124);
   flex-shrink: 0;
 }
 
 .au-select-empty {
   padding: 14px;
   text-align: center;
-  color: var(--au-text-tertiary);
+  color: var(--au-text-tertiary, #94A3B8);
   font-size: 12px;
 }
 
 /* 弹出动画 */
 .au-pop-enter-active, .au-pop-leave-active {
-  transition: opacity var(--au-dur-base) var(--au-ease),
-              transform var(--au-dur-base) var(--au-ease);
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 .au-pop-enter-from, .au-pop-leave-to {
   opacity: 0;

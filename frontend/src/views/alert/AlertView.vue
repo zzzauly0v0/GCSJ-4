@@ -1,5 +1,8 @@
 <template>
   <div class="alert-page">
+    <!-- ====== 时间轴: 与回放窗口绑定 ====== -->
+    <AuTimelineMini />
+
     <!-- ====== 顶部统计 ====== -->
     <div class="stats">
       <div v-for="s in statsData" :key="s.key" class="stat" :style="{'--c': s.color}">
@@ -94,13 +97,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   BellFilled, Clock, Location, Promotion, Refresh, CaretTop
 } from '@element-plus/icons-vue'
-import { apiAlertPage, apiAlertConfirm, apiAlertClose } from '@/api/alert'
+import { apiAlertConfirm, apiAlertClose } from '@/api/alert'
+import { apiReplayAlerts } from '@/api/replay'
+import { useReplayStore } from '@/store/replay'
 import { formatDateTime, levelMeta } from '@/utils/format'
+import AuTimelineMini from '@/components/aurora/AuTimelineMini.vue'
+
+const replayStore = useReplayStore()
 
 const rows = ref([])
 const total = ref(0)
@@ -111,17 +119,17 @@ const stats = ref({ total: 0, l1: 0, l2: 0, l3: 0, l4: 0 })
 
 const tabs = computed(() => [
   { value: null, label: '全部',     count: stats.value.total, color: null },
-  { value: 4,    label: '红色预警', count: stats.value.l4,    color: '#EF4444' },
-  { value: 3,    label: '橙色预警', count: stats.value.l3,    color: '#F97316' },
-  { value: 2,    label: '黄色预警', count: stats.value.l2,    color: '#FBBF24' },
-  { value: 1,    label: '蓝色预警', count: stats.value.l1,    color: '#3B82F6' }
+  { value: 4,    label: '红色预警', count: stats.value.l4,    color: '#D93025' },
+  { value: 3,    label: '橙色预警', count: stats.value.l3,    color: '#E8710A' },
+  { value: 2,    label: '黄色预警', count: stats.value.l2,    color: '#F29900' },
+  { value: 1,    label: '蓝色预警', count: stats.value.l1,    color: '#5F6368' }
 ])
 
 const statsData = computed(() => [
-  { key: 'total', label: '预警总数',   value: stats.value.total, color: '#3B82F6', trend: 12, icon: 'BellFilled' },
-  { key: 'red',   label: '红色预警',   value: stats.value.l4,    color: '#EF4444', trend: 5,  icon: 'Warning' },
-  { key: 'orange',label: '橙色预警',   value: stats.value.l3,    color: '#F97316', trend: 8,  icon: 'Warning' },
-  { key: 'done',  label: '已处置',     value: 32,                color: '#22C55E', trend: 18, icon: 'Check' }
+  { key: 'total', label: '预警总数',   value: stats.value.total, color: '#3C4043', trend: 12, icon: 'BellFilled' },
+  { key: 'red',   label: '红色预警',   value: stats.value.l4,    color: '#D93025', trend: 5,  icon: 'Warning' },
+  { key: 'orange',label: '橙色预警',   value: stats.value.l3,    color: '#E8710A', trend: 8,  icon: 'Warning' },
+  { key: 'done',  label: '已处置',     value: 32,                color: '#1E8E3E', trend: 18, icon: 'Check' }
 ])
 
 function statusText(s) {
@@ -134,25 +142,48 @@ function onTab(level) {
   loadPage()
 }
 
+/**
+ * 数据来源: 回放接口 (按虚拟时刻过滤)
+ * 不再走 /alerts 分页接口, 列表项由 ReplayController 返回的字段拼出
+ */
 async function loadPage() {
+  await replayStore.init()
+  const at = replayStore.virtualNowIso
+  if (!at) return
   loading.value = true
   try {
-    const data = await apiAlertPage(filter)
-    rows.value = data.records || []
-    total.value = data.total || 0
-    // 更新 stats (无 level 时整体抓取)
-    if (filter.level == null && filter.status == null) {
-      const all = await apiAlertPage({ page: 1, size: 200 })
-      stats.value = {
-        total: all.total || 0,
-        l1: (all.records || []).filter(r => r.level === 1).length,
-        l2: (all.records || []).filter(r => r.level === 2).length,
-        l3: (all.records || []).filter(r => r.level === 3).length,
-        l4: (all.records || []).filter(r => r.level === 4).length
-      }
+    const list = await apiReplayAlerts(at, 500)
+    const all = (list || []).map(a => ({
+      id: a.id,
+      code: a.code,
+      title: a.title,
+      content: a.content,
+      level: a.level,
+      status: 1,
+      triggeredAt: a.triggered_at,
+      longitude: a.lon,
+      latitude:  a.lat,
+      channels: ['in_site'],
+    }))
+    let filtered = all
+    if (filter.level != null) filtered = filtered.filter(r => r.level === filter.level)
+    total.value = filtered.length
+    rows.value  = filtered.slice((filter.page - 1) * filter.size, filter.page * filter.size)
+    stats.value = {
+      total: all.length,
+      l1: all.filter(r => r.level === 1).length,
+      l2: all.filter(r => r.level === 2).length,
+      l3: all.filter(r => r.level === 3).length,
+      l4: all.filter(r => r.level === 4).length,
     }
   } finally { loading.value = false }
 }
+
+let _alertDebounce = null
+watch(() => replayStore.virtualNow, () => {
+  if (_alertDebounce) return
+  _alertDebounce = setTimeout(() => { _alertDebounce = null; loadPage() }, 800)
+})
 
 async function onConfirm(row) {
   await ElMessageBox.confirm(`确认预警「${row.title}」?`, '确认操作', { type: 'warning' })
@@ -176,29 +207,30 @@ onMounted(loadPage)
 /* 顶部统计 */
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .stat {
-  --c: #3B82F6;
+  --c: #3C4043;
   background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid var(--au-border-subtle);
+  border-radius: 16px;
   padding: 18px 20px;
   display: flex; align-items: center; gap: 14px;
   position: relative; overflow: hidden;
+  box-shadow: var(--au-shadow-sm);
   &::before {
     content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c);
   }
   .stat-icon {
-    width: 44px; height: 44px; border-radius: 8px;
-    background: color-mix(in srgb, var(--c) 14%, white);
+    width: 44px; height: 44px; border-radius: 16px;
+    background: color-mix(in srgb, var(--c) 10%, white);
     color: var(--c);
     display: flex; align-items: center; justify-content: center;
     font-size: 22px;
   }
   .stat-body { flex: 1; }
-  .stat-value { font-size: 26px; font-weight: 700; color: var(--text-1); line-height: 1; }
-  .stat-label { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+  .stat-value { font-size: 26px; font-weight: 700; color: var(--au-text-strong); line-height: 1; }
+  .stat-label { font-size: 12px; color: var(--au-text-secondary); margin-top: 4px; }
   .stat-trend {
-    font-size: 11px; color: #16A34A; display: flex; align-items: center; gap: 2px;
-    padding: 2px 8px; background: rgba(34,197,94,0.1); border-radius: 10px;
+    font-size: 11px; color: #1E8E3E; display: flex; align-items: center; gap: 2px;
+    padding: 2px 8px; background: #E6F4EA; border-radius: 16px;
   }
 }
 
@@ -206,34 +238,34 @@ onMounted(loadPage)
 .tab-bar {
   display: flex; align-items: center; gap: 4px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--au-border-subtle);
 }
 .tab {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 14px;
   font-size: 13px;
-  color: var(--text-2);
+  color: var(--au-text-secondary);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 16px;
   transition: all 0.15s;
-  &:hover { background: var(--bg); }
+  &:hover { background: rgb(248, 249, 252); color: var(--au-text-strong); }
   &.active {
-    background: rgba(37, 99, 235, 0.08);
-    color: var(--primary);
+    background: rgb(248, 249, 252);
+    color: var(--au-text-strong);
     font-weight: 600;
   }
   .tab-dot { width: 8px; height: 8px; border-radius: 50%; }
   .tab-count {
-    font-family: 'DIN Alternate', monospace;
-    background: var(--bg);
-    color: var(--text-2);
+    font-family: var(--au-font-num);
+    background: var(--au-bg-subtle);
+    color: var(--au-text-secondary);
     padding: 0 6px;
-    border-radius: 8px;
+    border-radius: 16px;
     font-size: 11px;
     min-width: 20px;
     text-align: center;
   }
-  &.active .tab-count { background: rgba(37, 99, 235, 0.15); color: var(--primary); }
+  &.active .tab-count { background: var(--au-bg-hover); color: var(--au-text-strong); }
 }
 .tab-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
@@ -244,18 +276,18 @@ onMounted(loadPage)
 .alert-item {
   display: flex; align-items: stretch; gap: 14px;
   padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--au-border-subtle);
+  border-radius: 16px;
   margin-bottom: 10px;
   background: #fff;
   transition: all 0.2s;
   position: relative;
   overflow: hidden;
   &:hover {
-    border-color: rgba(37, 99, 235, 0.3);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    border-color: var(--au-border-base);
+    box-shadow: 0 2px 8px rgba(60,64,67,0.06);
   }
-  .lvl-stripe { width: 3px; border-radius: 2px; flex-shrink: 0; }
+  .lvl-stripe { width: 3px; border-radius: 16px; flex-shrink: 0; }
   &.lvl-1 .lvl-stripe { background: var(--alert-blue); }
   &.lvl-2 .lvl-stripe { background: var(--alert-yellow); }
   &.lvl-3 .lvl-stripe { background: var(--alert-orange); }
@@ -274,13 +306,13 @@ onMounted(loadPage)
 
 .alert-main { flex: 1; min-width: 0;
   .title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
-    .title { font-size: 14px; font-weight: 600; color: var(--text-1); }
-    .code { font-family: 'DIN Alternate', monospace; font-size: 11px; color: var(--text-3);
-      padding: 1px 8px; border: 1px dashed var(--border); border-radius: 8px;
+    .title { font-size: 14px; font-weight: 600; color: var(--au-text-strong); }
+    .code { font-family: var(--au-font-num); font-size: 11px; color: var(--au-text-secondary);
+      padding: 1px 8px; border: 1px dashed var(--au-border-base); border-radius: 16px;
     }
   }
-  .content { font-size: 12px; color: var(--text-2); margin-bottom: 8px; line-height: 1.5; }
-  .meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: var(--text-3);
+  .content { font-size: 12px; color: var(--au-text-primary); margin-bottom: 8px; line-height: 1.5; }
+  .meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: var(--au-text-secondary);
     .meta-item { display: flex; align-items: center; gap: 4px; }
   }
 }
@@ -289,14 +321,57 @@ onMounted(loadPage)
   display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 8px;
   flex-shrink: 0;
   .status-tag {
-    font-size: 11px; padding: 2px 10px; border-radius: 10px; font-weight: 600;
-    &.s-1 { background: rgba(239,68,68,0.1);  color: #DC2626; }
-    &.s-2 { background: rgba(56,189,248,0.1); color: #0284C7; }
-    &.s-3 { background: rgba(34,197,94,0.1);  color: #16A34A; }
-    &.s-4 { background: rgba(100,116,139,0.1);color: #475569; }
+    font-size: 11px; padding: 2px 10px; border-radius: 16px; font-weight: 600;
+    &.s-1 { background: #FCE8E6; color: #B3261E; }
+    &.s-2 { background: #F1F3F4; color: #3C4043; }
+    &.s-3 { background: #E6F4EA; color: #1E8E3E; }
+    &.s-4 { background: #F1F3F4; color: #5F6368; }
   }
   .actions { display: flex; gap: 6px; }
 }
 
-.pager { padding: 12px 16px; display: flex; justify-content: flex-end; border-top: 1px solid var(--border); }
+.pager { padding: 12px 16px; display: flex; justify-content: flex-end; border-top: 1px solid var(--au-border-subtle); }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .alert-page { padding: 10px; gap: 10px; }
+
+  .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { padding: 12px; gap: 10px; border-radius: 12px;
+    .stat-icon { width: 36px; height: 36px; font-size: 18px; }
+    .stat-value { font-size: 20px; }
+    .stat-label { font-size: 11px; }
+    .stat-trend { display: none; }
+  }
+
+  .tab-bar { flex-wrap: wrap; padding: 6px; gap: 2px; }
+  .tab { padding: 6px 10px; font-size: 12px; }
+  .tab-actions { margin-left: 0; width: 100%; justify-content: flex-end; padding: 4px 0 0; }
+
+  .alert-list { padding: 8px; }
+  .alert-item {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    .alert-icon { width: 36px; flex-direction: row; gap: 6px;
+      .el-icon { font-size: 18px; }
+    }
+    .alert-main {
+      width: calc(100% - 50px);
+      .title-row .title { font-size: 13px; }
+      .meta { gap: 8px; font-size: 10px; }
+    }
+  }
+  .alert-status { flex-direction: row; align-items: center; width: 100%;
+    justify-content: space-between; padding-top: 4px;
+    border-top: 1px dashed var(--au-border-subtle);
+  }
+
+  .pager { justify-content: center; padding: 10px; }
+}
+
+@media (max-width: 480px) {
+  .stats { grid-template-columns: 1fr; }
+}
 </style>

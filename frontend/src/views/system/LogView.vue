@@ -212,4 +212,16 @@ onMounted(loadPage)
   justify-content: flex-end;
   padding: 12px;
 }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .page { padding: 8px; gap: 8px; }
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    .toolbar-left, .toolbar-right { width: 100%; }
+    .toolbar-right { justify-content: flex-end; }
+  }
+  .pager { justify-content: center; padding: 10px; }
+}
 </style>

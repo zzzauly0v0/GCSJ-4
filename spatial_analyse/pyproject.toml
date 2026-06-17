@@ -1,0 +1,14 @@
+[project]
+name = "spatial-analyse"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "geopy>=2.4.1",
+    "pandas>=3.0.3",
+    "pyproj>=3.7.2",
+    "psycopg2-binary>=2.9.9",
+    "requests>=2.32.0",
+    "shapely>=2.0.0",
+]

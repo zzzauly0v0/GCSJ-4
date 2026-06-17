@@ -1,5 +1,8 @@
 <template>
   <div class="page">
+    <!-- 时间轴: 与回放窗口绑定 -->
+    <AuTimelineMini />
+
     <!-- 工具栏 -->
     <div class="gcsj-card toolbar">
       <div class="toolbar-left">
@@ -164,14 +167,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Plus, BellFilled } from '@element-plus/icons-vue'
-import { apiDisasterPage, apiDisasterCreate, apiDisasterChangeStatus } from '@/api/disaster'
+import { apiDisasterCreate, apiDisasterChangeStatus } from '@/api/disaster'
 import { apiAlertCreateFromEvent } from '@/api/alert'
+import { apiReplayEvents } from '@/api/replay'
+import { useReplayStore } from '@/store/replay'
 import { apiDictionaryByType } from '@/api/dictionary'
 import { formatDateTime } from '@/utils/format'
 import AlertLevelTag from '@/components/common/AlertLevelTag.vue'
+import AuTimelineMini from '@/components/aurora/AuTimelineMini.vue'
+
+const replayStore = useReplayStore()
 
 const rows = ref([])
 const total = ref(0)
@@ -200,14 +208,49 @@ async function loadTypes() {
 }
 function typeLabel(v) { return types.value.find(t => t.value === v)?.label || v }
 
+/**
+ * 数据来源: 回放灾害事件 GeoJSON (按虚拟时刻过滤)
+ * 客户端再做 keyword/type/level/status 过滤 + 分页
+ */
 async function loadPage() {
+  await replayStore.init()
+  const at = replayStore.virtualNowIso
+  if (!at) return
   loading.value = true
   try {
-    const data = await apiDisasterPage(filter)
-    rows.value = data.records || []
-    total.value = data.total || 0
+    const geo = await apiReplayEvents(at)
+    const all = (geo?.features || []).map(f => {
+      const p = f.properties || {}
+      const c = f.geometry?.coordinates || [null, null]
+      return {
+        id: p.id,
+        code: p.code,
+        title: p.title,
+        description: p.description,
+        type: p.type,
+        level: p.level,
+        regionCode: p.regionCode,
+        occurredAt: p.occurredAt,
+        longitude: c[0],
+        latitude:  c[1],
+        status: 1,
+      }
+    })
+    let filtered = all
+    if (filter.keyword) filtered = filtered.filter(r => (r.title || '').includes(filter.keyword) || (r.description || '').includes(filter.keyword))
+    if (filter.type)   filtered = filtered.filter(r => r.type === filter.type)
+    if (filter.level)  filtered = filtered.filter(r => r.level === filter.level)
+    if (filter.status) filtered = filtered.filter(r => r.status === filter.status)
+    total.value = filtered.length
+    rows.value  = filtered.slice((filter.page - 1) * filter.size, filter.page * filter.size)
   } finally { loading.value = false }
 }
+
+let _disasterDebounce = null
+watch(() => replayStore.virtualNow, () => {
+  if (_disasterDebounce) return
+  _disasterDebounce = setTimeout(() => { _disasterDebounce = null; loadPage() }, 800)
+})
 
 function onAdd() { dlg.value = true }
 async function onSave() {
@@ -271,8 +314,25 @@ onMounted(() => {
   }
 }
 .type-tag {
-  font-size: 12px; padding: 2px 8px; border-radius: 10px;
-  background: rgba(37, 99, 235, 0.08); color: var(--primary);
+  font-size: 12px; padding: 2px 8px; border-radius: 16px;
+  background: rgb(248, 249, 252); color: var(--au-text-strong);
+  border: 1px solid var(--au-border-subtle);
 }
 .pager { padding: 14px; display: flex; justify-content: flex-end; }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .page { padding: 10px; gap: 10px; }
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px;
+  }
+  .toolbar-left,
+  .toolbar-right { width: 100%; flex-wrap: wrap; }
+  .toolbar-right { justify-content: flex-end; }
+  .row-title .title-desc { max-width: 60vw; }
+  .pager { justify-content: center; padding: 10px; }
+}
 </style>
