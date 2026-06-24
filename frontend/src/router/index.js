@@ -22,6 +22,12 @@ const routes = [
         meta: { title: '监测大屏', icon: 'DataLine', permission: 'dashboard:view' }
       },
       {
+        path: 'history',
+        name: 'History',
+        component: () => import('@/views/history/HistoryView.vue'),
+        meta: { title: '历史灾害分析', icon: 'Calendar', permission: 'dashboard:view' }
+      },
+      {
         path: 'disasters',
         name: 'Disasters',
         component: () => import('@/views/disaster/DisasterView.vue'),
