@@ -19,12 +19,16 @@
           <p class="hero-sub">
             综合气象观测、地质形变监测与空间分析，提供分级预警与决策支持
           </p>
+          <div class="entry-card" @click="router.push('/history')">
+            <div class="entry-title">历史灾害分析 →</div>
+            <div class="entry-sub">2020–2023 逐日气象 · 四类灾害判别</div>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- ============================================================
-         TIMELINE — 历史回放控制 (2022-09-05 泸定地震窗口)
+         TIMELINE — 历史回放控制 (2022-09-05 汛期暴雨/滑坡窗口)
     ============================================================ -->
     <section class="timeline-section">
       <AuTimelinePlayer />
@@ -86,10 +90,6 @@
               <label class="map-toggle">
                 <input type="checkbox" v-model="replayToggle.stations" @change="syncReplayLayer('stations')" />
                 <span>气象站</span>
-              </label>
-              <label class="map-toggle">
-                <input type="checkbox" v-model="replayToggle.quake" @change="syncReplayLayer('quake')" />
-                <span>震中</span>
               </label>
               <label class="map-toggle">
                 <input type="checkbox" v-model="replayToggle.impact" @change="syncReplayLayer('impact')" />
@@ -222,6 +222,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import * as echarts from 'echarts'
 
@@ -249,6 +250,7 @@ import AuSelect from '@/components/aurora/AuSelect.vue'
 import AuKpiCard from '@/components/aurora/AuKpiCard.vue'
 import AuTimelinePlayer from '@/components/aurora/AuTimelinePlayer.vue'
 
+const router = useRouter()
 const alertStore = useAlertStore()
 const replayStore = useReplayStore()
 
@@ -276,9 +278,9 @@ const { map: olMapRef, loadGeoJson } = useMap(mapEl, {
   ],
 })
 
-// 回放专题图层 (雨量热力 / 气象站 / 地震 / 事件影响)
+// 回放专题图层 (雨量热力 / 气象站 / 事件影响)
 const replayLayers = useReplayLayers(olMapRef)
-const replayToggle = ref({ heatmap: true, stations: true, quake: true, impact: true })
+const replayToggle = ref({ heatmap: true, stations: true, impact: true })
 function syncReplayLayer(key) {
   replayLayers.toggle(key, replayToggle.value[key])
   if (key === 'impact') replayLayers.toggle('eventDot', replayToggle.value[key])
@@ -438,7 +440,6 @@ const sensorReadings = ref([
   { key: 'rain', label: '降雨量',  value: '12.4', unit: 'mm',  color: '#2563EB' },
   { key: 'wind', label: '风速',    value: '8.2',  unit: 'm/s', color: '#06B6D4' },
   { key: 'disp', label: '位移',    value: '0.30', unit: 'mm',  color: '#F59E0B' },
-  { key: 'seis', label: '地震烈度', value: '0.08', unit: 'gal', color: '#475569' },
   { key: 'soil', label: '土壤湿度', value: '78',   unit: '%',   color: '#10B981' },
   { key: 'temp', label: '温度',    value: '24.5', unit: '°C',  color: '#F97316' },
 ])
@@ -447,9 +448,8 @@ function refreshSensors() {
   sensorReadings.value[0].value = (8 + Math.random() * 20).toFixed(1)
   sensorReadings.value[1].value = (4 + Math.random() * 12).toFixed(1)
   sensorReadings.value[2].value = (Math.random() * 1.5).toFixed(2)
-  sensorReadings.value[3].value = (Math.random() * 0.2).toFixed(3)
-  sensorReadings.value[4].value = Math.round(60 + Math.random() * 30).toString()
-  sensorReadings.value[5].value = (20 + Math.random() * 10).toFixed(1)
+  sensorReadings.value[3].value = Math.round(60 + Math.random() * 30).toString()
+  sensorReadings.value[4].value = (20 + Math.random() * 10).toFixed(1)
 }
 
 // ---------- Charts ----------
@@ -639,13 +639,13 @@ async function reloadAll() {
     loadGeoJson('disasters', eventsGeo)
     loadGeoJson('alerts', { type: 'FeatureCollection', features: [] })
     eventCount.value = snapshot?.activeEvents ?? eventsGeo?.features?.length ?? 0
-    // 同步回放专题图层 (雨量热力 / 气象站 / 震中 / 受灾范围)
+    // 同步回放专题图层 (雨量热力 / 气象站 / 受灾范围)
     replayLayers.refresh(at)
     // 用快照里最大区域 1h 雨更新 sensor 卡
     if (snapshot?.rainByRegion?.length) {
       const top = snapshot.rainByRegion[0]
       sensorReadings.value[0].value = (top.rainfall_1h ?? 0).toFixed(1)
-      sensorReadings.value[4].value = String(Math.round(60 + (top.rainfall_24h ?? 0) * 0.4))
+      sensorReadings.value[3].value = String(Math.round(60 + (top.rainfall_24h ?? 0) * 0.4))
     }
   } catch (_) {}
   renderCharts()
@@ -742,6 +742,19 @@ watch(() => replayStore.virtualNow, () => {
   max-width: 540px;
   line-height: 1.6;
 }
+.entry-card {
+  margin-top: 16px;
+  display: inline-block;
+  cursor: pointer;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  transition: background 0.2s;
+}
+.entry-card:hover { background: rgba(59, 130, 246, 0.24); }
+.entry-title { font-size: 14px; font-weight: 600; color: var(--au-text-primary); }
+.entry-sub { font-size: 12px; color: var(--au-text-secondary); margin-top: 2px; }
 .hero-controls {
   display: flex;
   align-items: flex-end;
