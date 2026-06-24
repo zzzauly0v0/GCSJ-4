@@ -98,13 +98,13 @@
   <img src="assert/SpatialLayer.png" alt="空间图层" width="90%"/>
 </div>
 
-### 时间轴回放（2022·9·5 泸定 6.8 级地震）
+### 时间轴回放（2022·9·5 汛期暴雨/滑坡）
 
 > 离线生成的 9 月 5 日—7 日 72 小时模拟数据，按虚拟时刻播放雨情、地质传感、预警与事件演化。
 >
 > - 数据由 `spatial_analyse/replay_data_gen.py` 生成，规则引擎在 Python 端**离线**算好预警与事件
 > - `GET /api/replay/window` 返回时间窗口、`/snapshot` 取某虚拟时刻的省域概览（雨强 / 活跃预警数 / 事件数）
-> - `/weather/series` `/geo/series` 提供单站时序，`/alerts` `/events/geojson` `/earthquakes` 提供地图数据
+> - `/weather/series` `/geo/series` 提供单站时序，`/alerts` `/events/geojson` 提供地图数据
 > - 服务端故意走 `JdbcTemplate` 直查（不走 service / repository 三件套），换取查询性能
 
 ### 应急预案
@@ -166,7 +166,7 @@
 | WebGIS 可视化 | 底图切换 / 业务图层叠加 / 热力 / 灾害定位 | OpenLayers + ECharts，矢量切片预留 |
 | 空间图层管理 | 图层目录 CRUD + GeoServer 自动发布通道（占位） | `/api/layers` · `POST /api/layers/{id}/publish` |
 | 应急预案 | 按灾种+等级匹配适用预案 | `/api/plans` · `/api/plans/applicable` |
-| 时间轴回放 | 泸定地震 72h 模拟数据时序回放 | `/api/replay/*` · `JdbcTemplate` 直查 |
+| 时间轴回放 | 汛期暴雨/滑坡 72h 模拟数据时序回放 | `/api/replay/*` · `JdbcTemplate` 直查 |
 | 系统管理 | 用户 / 角色 / 权限树 / 字典 / 操作日志 | `/api/users` · `/api/roles` · `/api/permissions/tree` · `/api/dictionaries` · `/api/logs` |
 
 ---
@@ -387,6 +387,23 @@ cd spatial_analyse
 uv sync
 uv run python ../data/load_sichuan_boundary.py    # 拉阿里 DataV → gis_admin_region
 ```
+
+### 气象历史数据与灾害判别（2020–2023）
+
+```bash
+# 1. 建表（数据表 + 灾害判别表）
+psql -U gcsj -d gcsj -h localhost -f data/04_weather_daily_schema.sql
+psql -U gcsj -d gcsj -h localhost -f data/05_disaster_eval_schema.sql
+
+# 2. 入库逐日气象数据（GBK CSV -> biz_weather_daily + 站点元数据）
+cd spatial_analyse && uv run python load_weather_stations.py
+
+# 3. 启动后端后, 执行灾害判别批算（回填 biz_disaster_eval, 幂等可重复）
+curl -X POST http://localhost:8085/api/disaster-eval/run
+```
+
+判别结果仅写入 `biz.biz_disaster_eval`，不污染 `biz_disaster_event` / `biz_alert`；
+前端「历史灾害分析」页（`/history`）消费，监测大屏首页有入口卡片。
 
 ## 文档
 
