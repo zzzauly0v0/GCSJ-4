@@ -16,3 +16,6 @@ export const apiEvalEvents = (params = {}) =>
 
 export const apiEvalHeatmap = (year, metric = 'rainfall') =>
   request.get('/disaster-eval/heatmap', { params: { year, metric } })
+
+export const apiEvalSummary = (year) =>
+  request.get('/disaster-eval/summary', { params: year ? { year } : {} })

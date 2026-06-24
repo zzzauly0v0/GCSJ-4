@@ -177,6 +177,57 @@ public class DisasterEvalController {
         return Result.ok(out);
     }
 
+    /** 大屏概览聚合: 数据规模 + 灾种风险日分布 + 等级分布 + 逐年趋势 (供监测大屏历史面板) */
+    @Operation(summary = "历史气象灾害概览聚合 (供大屏)")
+    @GetMapping("/summary")
+    public Result<Map<String, Object>> summary(@RequestParam(required = false) Integer year) {
+        String wYear = year != null ? " AND EXTRACT(YEAR FROM obs_date) = " + year + " " : "";
+
+        Map<String, Object> out = new LinkedHashMap<>();
+
+        // 数据规模
+        out.put("stationCount", jdbc.queryForObject(
+                "SELECT COUNT(*) FROM biz.biz_monitor_station WHERE type='weather'", Integer.class));
+        out.put("weatherDays", jdbc.queryForObject(
+                "SELECT COUNT(*) FROM biz.biz_weather_daily WHERE 1=1" + wYear, Integer.class));
+        out.put("riskDays", jdbc.queryForObject(
+                "SELECT COUNT(*) FROM biz.biz_disaster_eval WHERE comp_level >= 1" + wYear, Integer.class));
+
+        // 灾种风险日分布 (level>=1 计为一次) -> 饼图
+        Map<String, Object> byType = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : Map.of(
+                "landslide", "landslide_level", "mudslide", "mudslide_level",
+                "freezethaw", "freezethaw_level", "collapse", "collapse_level").entrySet()) {
+            Integer c = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM biz.biz_disaster_eval WHERE " + e.getValue() + " >= 1" + wYear,
+                    Integer.class);
+            byType.put(e.getKey(), c);
+        }
+        out.put("byType", byType);
+
+        // 综合等级分布 (1蓝..4红) -> 等级卡
+        out.put("byLevel", jdbc.queryForList(
+                "SELECT comp_level AS level, COUNT(*) AS cnt FROM biz.biz_disaster_eval " +
+                "WHERE comp_level >= 1" + wYear + " GROUP BY comp_level ORDER BY comp_level"));
+
+        // 逐年风险日趋势 -> 折线/柱
+        out.put("byYear", jdbc.queryForList(
+                "SELECT EXTRACT(YEAR FROM obs_date)::int AS year, COUNT(*) AS cnt " +
+                "FROM biz.biz_disaster_eval WHERE comp_level >= 1 GROUP BY year ORDER BY year"));
+
+        // Top 风险日 (跨年, 综合等级最高若干条) -> 大屏列表
+        out.put("topEvents", jdbc.queryForList("""
+            SELECT e.station_code, s.name AS station_name, e.obs_date,
+                   e.r_eff, e.comp_level
+            FROM   biz.biz_disaster_eval e
+            LEFT   JOIN biz.biz_monitor_station s ON s.code = e.station_code
+            WHERE  e.comp_level >= 1
+        """ + (year != null ? " AND EXTRACT(YEAR FROM e.obs_date) = " + year + " " : "") +
+            " ORDER BY e.comp_level DESC, e.r_eff DESC NULLS LAST, e.obs_date DESC LIMIT 8"));
+
+        return Result.ok(out);
+    }
+
     /** 区县级聚合 (供专题热力) */
     @Operation(summary = "区县级气象/风险聚合")
     @GetMapping("/heatmap")

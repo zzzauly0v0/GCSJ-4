@@ -35,6 +35,78 @@
     </section>
 
     <!-- ============================================================
+         HISTORY — 2020–2023 历史气象灾害概览 (真实 CSV + 判别结果)
+    ============================================================ -->
+    <section class="history-section">
+      <AuCard
+        title="2020–2023 历史气象灾害概览"
+        subtitle="逐日气象观测 · 四类灾害判别"
+        gradient-border
+        dot
+        flat
+        class="card-history"
+      >
+        <template #extra>
+          <div class="hist-toolbar">
+            <AuSelect
+              v-model="histYear"
+              :options="[
+                { value: 0,    label: '全部年份' },
+                { value: 2020, label: '2020' },
+                { value: 2021, label: '2021' },
+                { value: 2022, label: '2022' },
+                { value: 2023, label: '2023' },
+              ]"
+              :width="120"
+            />
+            <router-link to="/history" class="see-all">进入分析页 →</router-link>
+          </div>
+        </template>
+
+        <div class="hist-grid">
+          <!-- 数据规模 KPI -->
+          <div class="hist-stats">
+            <div class="hist-stat">
+              <span class="hist-stat-val">{{ histSummary.stationCount }}</span>
+              <span class="hist-stat-lbl">气象站点</span>
+            </div>
+            <div class="hist-stat">
+              <span class="hist-stat-val">{{ histSummary.weatherDays }}</span>
+              <span class="hist-stat-lbl">逐日观测(条)</span>
+            </div>
+            <div class="hist-stat danger">
+              <span class="hist-stat-val">{{ histSummary.riskDays }}</span>
+              <span class="hist-stat-lbl">判出风险日</span>
+            </div>
+          </div>
+
+          <!-- 灾种分布饼 + 逐年趋势 -->
+          <div ref="histPieEl" class="hist-chart" />
+          <div ref="histYearEl" class="hist-chart" />
+
+          <!-- Top 风险日列表 -->
+          <div class="hist-top">
+            <div class="hist-top-title">最高风险日 Top 8</div>
+            <div v-if="!histSummary.topEvents.length" class="hist-empty">
+              暂无判别结果，请先在分析页执行「执行灾害判别」
+            </div>
+            <div
+              v-for="(ev, i) in histSummary.topEvents"
+              :key="i"
+              class="hist-top-row"
+            >
+              <span class="ht-bar" :style="{ background: LV_COLOR[ev.comp_level] }" />
+              <span class="ht-station">{{ ev.station_name || ev.station_code }}</span>
+              <span class="ht-date">{{ String(ev.obs_date).slice(0, 10) }}</span>
+              <span class="ht-reff">R_eff {{ Number(ev.r_eff ?? 0).toFixed(0) }}</span>
+              <span class="ht-lv" :style="{ color: LV_COLOR[ev.comp_level] }">{{ LV_NAME[ev.comp_level] }}</span>
+            </div>
+          </div>
+        </div>
+      </AuCard>
+    </section>
+
+    <!-- ============================================================
          KPI ROW
     ============================================================ -->
     <section class="kpi-row">
@@ -236,6 +308,7 @@ import {
   apiReplayEvents,
   apiReplaySnapshot,
 } from '@/api/replay'
+import { apiEvalSummary } from '@/api/disasterEval'
 import { useMap } from '@/hooks/useMap'
 import { useReplayLayers } from '@/hooks/useReplayLayers'
 
@@ -393,6 +466,94 @@ async function syncScLayer(key) {
 
 // ---------- Filters ----------
 const trendStackMode = ref('stack')
+
+// ---------- History overview (2020–2023 真实判别结果) ----------
+const LV_COLOR = ['#94A3B8', '#2563EB', '#F59E0B', '#F97316', '#DC2626']
+const LV_NAME = ['无', '蓝色', '黄色', '橙色', '红色']
+const TYPE_NAME = { landslide: '降雨滑坡', mudslide: '降雨泥石流', freezethaw: '冻融滑坡', collapse: '坡面崩塌' }
+const TYPE_COLOR = { landslide: '#6366F1', mudslide: '#06B6D4', freezethaw: '#3B82F6', collapse: '#8B5CF6' }
+
+const histYear = ref(0)
+const histSummary = ref({
+  stationCount: 0, weatherDays: 0, riskDays: 0,
+  byType: {}, byLevel: [], byYear: [], topEvents: [],
+})
+const histPieEl = ref(null)
+const histYearEl = ref(null)
+let histPieChart = null
+let histYearChart = null
+
+async function loadHistSummary() {
+  try {
+    const data = await apiEvalSummary(histYear.value || undefined)
+    histSummary.value = {
+      stationCount: data?.stationCount ?? 0,
+      weatherDays: data?.weatherDays ?? 0,
+      riskDays: data?.riskDays ?? 0,
+      byType: data?.byType ?? {},
+      byLevel: data?.byLevel ?? [],
+      byYear: data?.byYear ?? [],
+      topEvents: data?.topEvents ?? [],
+    }
+  } catch (_) { /* request 拦截器已提示 */ }
+  renderHistCharts()
+}
+
+function buildHistPieOption() {
+  const bt = histSummary.value.byType || {}
+  const data = Object.keys(TYPE_NAME)
+    .map(k => ({ name: TYPE_NAME[k], value: bt[k] || 0, itemStyle: { color: TYPE_COLOR[k] } }))
+    .filter(d => d.value > 0)
+  return {
+    backgroundColor: 'transparent',
+    title: { text: '灾种风险日分布', left: 'center', top: 4, textStyle: { color: '#475569', fontSize: 12, fontWeight: 600 } },
+    tooltip: { trigger: 'item', formatter: (p) => `${p.name}<br/><b>${p.value}</b> 天 (${p.percent}%)` },
+    legend: { bottom: 0, left: 'center', icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: '#475569', fontSize: 11 } },
+    series: [{
+      type: 'pie', radius: ['46%', '70%'], center: ['50%', '50%'],
+      avoidLabelOverlap: true, label: { show: false }, labelLine: { show: false },
+      itemStyle: { borderColor: '#FFFFFF', borderWidth: 2, borderRadius: 4 },
+      emphasis: { label: { show: true, formatter: '{b}\n{d}%', color: '#0F172A', fontSize: 12, fontWeight: 600 } },
+      data: data.length ? data : [{ name: '暂无数据', value: 1, itemStyle: { color: '#E2E8F0' } }],
+    }],
+  }
+}
+
+function buildHistYearOption() {
+  const rows = histSummary.value.byYear || []
+  const years = rows.map(r => String(r.year))
+  const counts = rows.map(r => Number(r.cnt) || 0)
+  return {
+    backgroundColor: 'transparent',
+    title: { text: '逐年风险日趋势', left: 'center', top: 4, textStyle: { color: '#475569', fontSize: 12, fontWeight: 600 } },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { top: 40, left: 36, right: 16, bottom: 24, containLabel: false },
+    xAxis: { type: 'category', data: years.length ? years : ['2020', '2021', '2022', '2023'],
+      axisLine: { lineStyle: { color: '#CBD5E1' } }, axisTick: { show: false }, axisLabel: { color: '#64748B', fontSize: 11 } },
+    yAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { color: '#64748B', fontSize: 10 }, splitLine: { lineStyle: { color: '#E2E8F0', type: 'dashed' } } },
+    series: [{
+      type: 'bar', data: counts.length ? counts : [0, 0, 0, 0], barWidth: '46%',
+      itemStyle: {
+        borderRadius: [4, 4, 0, 0],
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: '#6366F1' }, { offset: 1, color: '#06B6D4' },
+        ]),
+      },
+    }],
+  }
+}
+
+function renderHistCharts() {
+  if (histPieEl.value) {
+    if (!histPieChart) histPieChart = echarts.init(histPieEl.value)
+    histPieChart.setOption(buildHistPieOption(), true)
+  }
+  if (histYearEl.value) {
+    if (!histYearChart) histYearChart = echarts.init(histYearEl.value)
+    histYearChart.setOption(buildHistYearOption(), true)
+  }
+}
 
 // ---------- Level meta ----------
 const LEVEL_COLORS = { 1: '#2563EB', 2: '#F59E0B', 3: '#F97316', 4: '#DC2626' }
@@ -662,7 +823,8 @@ onMounted(async () => {
     if (replayStore.virtualNowIso) replayLayers.refresh(replayStore.virtualNowIso)
   }, 0)
   renderCharts()
-  resizeFn = () => { trendChart?.resize(); pieChart?.resize() }
+  loadHistSummary()
+  resizeFn = () => { trendChart?.resize(); pieChart?.resize(); histPieChart?.resize(); histYearChart?.resize() }
   window.addEventListener('resize', resizeFn)
   // 回放模式下不再用 mock sensor 抖动, 由 reloadAll 在 virtualNow 变化时刷新
 })
@@ -672,8 +834,13 @@ onBeforeUnmount(() => {
   if (sensorTimer) clearInterval(sensorTimer)
   trendChart?.dispose(); trendChart = null
   pieChart?.dispose();   pieChart = null
+  histPieChart?.dispose();  histPieChart = null
+  histYearChart?.dispose(); histYearChart = null
   replayLayers.detach()
 })
+
+// 年份切换 -> 重新拉历史概览
+watch(histYear, () => loadHistSummary())
 
 watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
 
@@ -772,6 +939,84 @@ watch(() => replayStore.virtualNow, () => {
   font-weight: 600;
   color: var(--au-text-secondary);
   letter-spacing: 0.04em;
+}
+
+/* ============================================================
+   HISTORY SECTION (2020–2023 概览)
+============================================================ */
+.history-section { display: flex; }
+.card-history { flex: 1; }
+.hist-toolbar { display: flex; align-items: center; gap: 14px; }
+.hist-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr 1fr 1.2fr;
+  gap: 16px;
+  align-items: stretch;
+  min-height: 240px;
+}
+.hist-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+}
+.hist-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--au-bg-subtle);
+  border: 1px solid var(--au-border-subtle);
+  border-radius: var(--au-radius-md);
+}
+.hist-stat.danger { border-color: #FCA5A5; background: rgba(220, 38, 38, 0.06); }
+.hist-stat-val {
+  font-family: var(--au-font-num);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--au-text-strong);
+  font-feature-settings: var(--au-font-feat);
+}
+.hist-stat.danger .hist-stat-val { color: #DC2626; }
+.hist-stat-lbl { font-size: 12px; color: var(--au-text-secondary); }
+.hist-chart { min-height: 240px; height: 100%; }
+.hist-top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.hist-top-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--au-text-secondary);
+  margin-bottom: 2px;
+}
+.hist-empty {
+  font-size: 12px;
+  color: var(--au-text-tertiary);
+  padding: 20px 8px;
+  text-align: center;
+}
+.hist-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--au-bg-subtle);
+  border-radius: var(--au-radius-sm, 6px);
+  font-size: 12px;
+}
+.ht-bar { width: 3px; height: 18px; border-radius: 999px; flex-shrink: 0; }
+.ht-station { flex: 1; min-width: 0; color: var(--au-text-strong); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ht-date { color: var(--au-text-tertiary); font-family: var(--au-font-num); }
+.ht-reff { color: var(--au-text-secondary); font-family: var(--au-font-num); }
+.ht-lv { font-weight: 600; flex-shrink: 0; }
+@media (max-width: 1280px) {
+  .hist-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+  .hist-grid { grid-template-columns: 1fr; }
 }
 
 /* ============================================================
