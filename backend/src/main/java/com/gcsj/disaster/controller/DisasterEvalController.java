@@ -129,17 +129,15 @@ public class DisasterEvalController {
     @GetMapping("/stations")
     public Result<List<Map<String, Object>>> stations(@RequestParam(required = false) Integer year) {
         String yearFilter = year != null ? " AND EXTRACT(YEAR FROM e.obs_date) = " + year + " " : "";
-        return Result.ok(jdbc.queryForList("""
-            SELECT s.code, s.name, s.region_code, s.year_coverage, s.record_count,
-                   ST_X(s.location) AS lon, ST_Y(s.location) AS lat,
-                   COALESCE(MAX(e.comp_level), 0) AS max_level
-            FROM   biz.biz_monitor_station s
-            LEFT   JOIN biz.biz_disaster_eval e
-                   ON e.station_code = s.code """ + yearFilter + """
-            WHERE  s.type = 'weather'
-            GROUP BY s.code, s.name, s.region_code, s.year_coverage, s.record_count, s.location
-            ORDER BY max_level DESC, s.code
-        """));
+        return Result.ok(jdbc.queryForList(
+                "SELECT s.code, s.name, s.region_code, s.year_coverage, s.record_count, " +
+                "       ST_X(s.location) AS lon, ST_Y(s.location) AS lat, " +
+                "       COALESCE(MAX(e.comp_level), 0) AS max_level " +
+                "FROM biz.biz_monitor_station s " +
+                "LEFT JOIN biz.biz_disaster_eval e ON e.station_code = s.code " + yearFilter + " " +
+                "WHERE s.type = 'weather' " +
+                "GROUP BY s.code, s.name, s.region_code, s.year_coverage, s.record_count, s.location " +
+                "ORDER BY max_level DESC, s.code"));
     }
 
     /** 风险日列表 (comp_level>=1 或指定灾种), 分页 */
@@ -237,16 +235,15 @@ public class DisasterEvalController {
                 ? "AVG(w.rainfall) AS value"
                 : "AVG(e.comp_level) AS value";
         String yearFilter = year != null ? " AND EXTRACT(YEAR FROM w.obs_date) = " + year + " " : "";
-        return Result.ok(jdbc.queryForList("""
-            SELECT s.region_code, r.name AS region_name, """ + agg + """
-            FROM   biz.biz_weather_daily w
-            JOIN   biz.biz_monitor_station s ON s.code = w.station_code
-            LEFT   JOIN biz.biz_disaster_eval e ON e.station_code = w.station_code AND e.obs_date = w.obs_date
-            LEFT   JOIN gis.gis_admin_region r ON r.adcode = s.region_code
-            WHERE  s.type = 'weather' """ + yearFilter + """
-            GROUP BY s.region_code, r.name
-            ORDER BY value DESC NULLS LAST
-        """));
+        return Result.ok(jdbc.queryForList(
+                "SELECT s.region_code, r.name AS region_name, " + agg + " " +
+                "FROM biz.biz_weather_daily w " +
+                "JOIN biz.biz_monitor_station s ON s.code = w.station_code " +
+                "LEFT JOIN biz.biz_disaster_eval e ON e.station_code = w.station_code AND e.obs_date = w.obs_date " +
+                "LEFT JOIN gis.gis_admin_region r ON r.adcode = s.region_code " +
+                "WHERE s.type = 'weather' " + yearFilter + " " +
+                "GROUP BY s.region_code, r.name " +
+                "ORDER BY value DESC NULLS LAST"));
     }
 
     private static Double toD(Object o) {
