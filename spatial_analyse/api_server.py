@@ -1,6 +1,7 @@
 """AI 灾害助手 FastAPI 服务。
 
-启动: uv run uvicorn spatial_analyse.api_server:app --port 8000
+启动 (在仓库根目录 m:/GCSJ-4 下, 使 spatial_analyse 包可导入):
+    uv run --project spatial_analyse uvicorn spatial_analyse.api_server:app --port 8062 --app-dir .
 """
 import json
 

@@ -9,7 +9,8 @@ from spatial_analyse.tools.geo import geo_locate
 from spatial_analyse.tools.gis_query import query_station_disasters
 from spatial_analyse.tools.knowledge import disaster_kb
 
-load_dotenv(override=True)
+# 显式加载本包目录下的 .env, 不依赖启动服务时的工作目录
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)
 
 _MODEL_ID = os.getenv("DASHSCOPE_MODEL_ID")
 _API_KEY = os.getenv("DASHSCOPE_API_KEY")

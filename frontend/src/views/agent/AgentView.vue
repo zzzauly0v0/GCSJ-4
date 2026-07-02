@@ -11,9 +11,15 @@
     <div class="agent-body" ref="bodyRef">
       <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
         <div class="bubble" :class="{ err: m.error }">
+          <div v-if="m.thinking" class="think-box">
+            <button class="think-toggle" @click="m.thinkOpen = !m.thinkOpen">
+              <span>{{ m.thinkOpen ? '▾' : '▸' }} 思考过程</span>
+            </button>
+            <div v-show="m.thinkOpen" class="think-content" v-text="m.thinking"></div>
+          </div>
           <span v-if="m.tool" class="tool-hint">🔧 {{ m.tool }}…</span>
           <span class="content" v-text="m.content"></span>
-          <span v-if="m.role === 'assistant' && m.streaming && !m.content" class="typing">思考中…</span>
+          <span v-if="m.role === 'assistant' && m.streaming && !m.content && !m.tool" class="typing">思考中…</span>
         </div>
       </div>
     </div>
@@ -73,7 +79,10 @@ async function send() {
   busy.value = true
 
   messages.value.push({ role: 'user', content: text })
-  const assistant = { role: 'assistant', content: '', tool: '', streaming: true, error: false }
+  const assistant = {
+    role: 'assistant', content: '', tool: '', streaming: true, error: false,
+    thinking: '', thinkOpen: false,
+  }
   messages.value.push(assistant)
   scrollToBottom()
 
@@ -85,7 +94,16 @@ async function send() {
     .filter(m => m.content)
 
   await streamChat(history, {
-    onTool: (ev) => { assistant.tool = ev.status; scrollToBottom() },
+    onTool: (ev) => {
+      // 工具调用前累积的正文其实是模型的思考/规划 (含裸 JSON 参数), 收进折叠区,
+      // 只保留最后一次工具调用之后的文本作为最终研判。
+      if (assistant.content) {
+        assistant.thinking += (assistant.thinking ? '\n' : '') + assistant.content
+        assistant.content = ''
+      }
+      assistant.tool = ev.status
+      scrollToBottom()
+    },
     onToken: (t) => { assistant.tool = ''; assistant.content += t; scrollToBottom() },
     onDone: () => { assistant.streaming = false; assistant.tool = ''; busy.value = false },
     onError: (msg) => {
@@ -143,6 +161,19 @@ async function send() {
 .bubble.err { background: #FEF2F2; color: #DC2626; }
 .tool-hint { display: block; font-size: 12px; color: #64748B; margin-bottom: 2px; }
 .typing { color: #94A3B8; }
+
+.think-box { margin-bottom: 6px; }
+.think-toggle {
+  border: none; background: transparent; cursor: pointer;
+  font-size: 12px; color: #94A3B8; padding: 0;
+}
+.think-toggle:hover { color: #64748B; }
+.think-content {
+  margin-top: 4px; padding: 8px 10px;
+  background: #F8FAFC; border: 1px dashed #E2E8F0; border-radius: 8px;
+  font-size: 12px; color: #94A3B8; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+}
 
 .agent-quick {
   display: flex; gap: 8px; flex-wrap: wrap;
