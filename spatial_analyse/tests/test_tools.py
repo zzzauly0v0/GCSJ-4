@@ -12,25 +12,64 @@ class _FakeLoc:
 
 
 def test_resolve_place_found():
-    # 注入假 geocoder: 返回九寨沟坐标
+    # 传空候选 -> 强制走 geocode 回退; 九寨沟坐标在四川内
     def fake_geocode(q, **kw):
         return _FakeLoc(103.918, 33.262)
 
-    r = resolve_place("九寨沟", geocode=fake_geocode)
+    r = resolve_place("九寨沟", geocode=fake_geocode, candidates=[])
     assert r["found"] is True
     assert abs(r["lon"] - 103.918) < 1e-6
     assert abs(r["lat"] - 33.262) < 1e-6
     assert r["name"] == "九寨沟"
+    assert r["source"] == "nominatim"
+    assert r["in_sichuan"] is True
 
 
 def test_resolve_place_not_found():
     def fake_geocode(q, **kw):
         return None
 
-    r = resolve_place("不存在的地方xyz", geocode=fake_geocode)
+    r = resolve_place("不存在的地方xyz", geocode=fake_geocode, candidates=[])
     assert r["found"] is False
     assert r["lon"] is None
     assert "未" in r["message"] or "not" in r["message"].lower()
+
+
+def test_resolve_place_offline_hit_does_not_call_geocode():
+    called = {"n": 0}
+
+    def boom_geocode(q, **kw):
+        called["n"] += 1
+        raise AssertionError("不该调用 geocode")
+
+    cands = [{"name": "都江堰", "lon": 103.62, "lat": 30.99,
+              "source": "region", "level": 3}]
+    r = resolve_place("成都都江堰", geocode=boom_geocode, candidates=cands)
+    assert r["found"] is True
+    assert r["source"] == "region"
+    assert r["in_sichuan"] is True
+    assert abs(r["lon"] - 103.62) < 1e-6
+    assert called["n"] == 0
+
+
+def test_resolve_place_fallback_outside_sichuan():
+    # 回退命中但坐标在上海 (出川) -> found=False 提示补充
+    def fake_geocode(q, **kw):
+        return _FakeLoc(121.47, 31.23)
+
+    r = resolve_place("某模糊地名", geocode=fake_geocode, candidates=[])
+    assert r["found"] is False
+    assert r["in_sichuan"] is False
+    assert "四川" in r["message"] or "具体" in r["message"]
+
+
+def test_resolve_place_geocode_exception():
+    def bad_geocode(q, **kw):
+        raise RuntimeError("限流")
+
+    r = resolve_place("某地", geocode=bad_geocode, candidates=[])
+    assert r["found"] is False
+    assert "异常" in r["message"] or "限流" in r["message"]
 
 
 def test_summarize_disasters_counts_levels_and_months():

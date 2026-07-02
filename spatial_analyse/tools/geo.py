@@ -83,12 +83,34 @@ def load_place_candidates(dsn: str = DB_DSN) -> list:
     ]
 
 
-def resolve_place(place: str, geocode=None) -> dict:
-    """地名 -> 经纬度 (纯函数, geocode 可注入便于测试)。
+# 四川 bbox (宽松包络): 用于校验回退坐标是否在川
+_SC_LON = (97.3, 108.6)
+_SC_LAT = (26.0, 34.4)
 
+
+def _in_sichuan(lon: float, lat: float) -> bool:
+    return _SC_LON[0] <= lon <= _SC_LON[1] and _SC_LAT[0] <= lat <= _SC_LAT[1]
+
+
+def resolve_place(place: str, geocode=None, candidates=None) -> dict:
+    """地名 -> 经纬度: 先库内站点/区划离线匹配, 未命中回退 Nominatim 并校验在川。
+
+    candidates: None 则从库加载; 传 list (含空 list) 则直接用, 不查库 (便于测试)。
     geocode: 可调用, 入参 (query, **kw), 返回带 .longitude/.latitude 的对象或 None。
-    默认用 geopy Nominatim。
     """
+    # 1) 离线匹配库内候选
+    if candidates is None:
+        try:
+            candidates = load_place_candidates()
+        except Exception:
+            candidates = []
+    hit = match_place(place, candidates)
+    if hit is not None:
+        return {"found": True, "name": place,
+                "lon": float(hit["lon"]), "lat": float(hit["lat"]),
+                "source": hit["source"], "in_sichuan": True, "message": "ok"}
+
+    # 2) 回退 Nominatim
     if geocode is None:
         from geopy.geocoders import Nominatim
         geocode = Nominatim(user_agent="gcsj-disaster-agent", timeout=10).geocode
@@ -97,15 +119,22 @@ def resolve_place(place: str, geocode=None) -> dict:
         loc = geocode(place)
     except Exception as e:  # 网络/限流等
         return {"found": False, "name": place, "lon": None, "lat": None,
+                "source": None, "in_sichuan": False,
                 "message": f"定位服务异常: {e}"}
 
     if loc is None:
         return {"found": False, "name": place, "lon": None, "lat": None,
+                "source": None, "in_sichuan": False,
                 "message": f"未找到地点「{place}」, 请换个更具体的说法 (如加上省市)。"}
 
-    return {"found": True, "name": place,
-            "lon": float(loc.longitude), "lat": float(loc.latitude),
-            "message": "ok"}
+    lon, lat = float(loc.longitude), float(loc.latitude)
+    if not _in_sichuan(lon, lat):
+        return {"found": False, "name": place, "lon": None, "lat": None,
+                "source": None, "in_sichuan": False,
+                "message": f"地点「{place}」似乎不在四川范围内, 请补充更具体的四川地名。"}
+
+    return {"found": True, "name": place, "lon": lon, "lat": lat,
+            "source": "nominatim", "in_sichuan": True, "message": "ok"}
 
 
 @function_tool
