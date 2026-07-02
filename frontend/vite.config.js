@@ -30,6 +30,10 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_WS_PROXY_TARGET || 'http://localhost:8085',
           changeOrigin: true,
           ws: true
+        },
+        '/ai': {
+          target: env.VITE_AI_PROXY_TARGET || 'http://localhost:8000',
+          changeOrigin: true
         }
       }
     },
