@@ -1,6 +1,6 @@
 import json
 
-from spatial_analyse.tools.geo import resolve_place
+from spatial_analyse.tools.geo import match_place, resolve_place
 from spatial_analyse.tools.gis_query import summarize_disasters
 from spatial_analyse.tools.knowledge import lookup_knowledge
 
@@ -73,3 +73,33 @@ def test_lookup_knowledge_fallback():
     text = lookup_knowledge("完全不相关的词")
     # 无匹配 -> 返回总览, 至少包含多个灾种名
     assert "暴雨" in text and "滑坡" in text
+
+
+def _cands():
+    return [
+        {"name": "成都", "lon": 104.07, "lat": 30.67, "source": "region", "level": 2},
+        {"name": "都江堰", "lon": 103.62, "lat": 30.99, "source": "region", "level": 3},
+        {"name": "九寨沟", "lon": 103.92, "lat": 33.26, "source": "station", "level": None},
+        {"name": "峨眉山", "lon": 103.48, "lat": 29.60, "source": "station", "level": None},
+    ]
+
+
+def test_match_place_exact():
+    r = match_place("成都", _cands())
+    assert r["name"] == "成都" and r["source"] == "region"
+
+
+def test_match_place_station_contains():
+    # 站名被包含在 query 中
+    r = match_place("我想去峨眉山玩", _cands())
+    assert r["name"] == "峨眉山" and r["source"] == "station"
+
+
+def test_match_place_prefers_more_specific():
+    # 同时含 成都(市级) 与 都江堰(县级) -> 取更具体的县/站
+    r = match_place("成都都江堰", _cands())
+    assert r["name"] == "都江堰"
+
+
+def test_match_place_no_match():
+    assert match_place("上海东方明珠", _cands()) is None
