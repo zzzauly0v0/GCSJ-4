@@ -1,10 +1,13 @@
 /**
- * 回放专用图层组合: 雨量热力 / 气象站 / 地震震中 (含波纹) / 灾害事件影响圈
+ * 回放专用图层组合: 风险热力 / 高风险站点 / 灾害影响圈
+ *
+ * 数据来源: WebSocket /topic/disasters 按日推送的灾害判别结果
+ * (由 POST /api/disaster-eval/push?date= 广播), 不再拉取已下线的回放快照接口.
  *
  * 用法 (在 dashboard 里):
  *   const replayLayers = useReplayLayers(olMapRef)
- *   await replayLayers.attach()                  // 一次性挂上四个图层
- *   replayLayers.refresh(virtualNowIso)          // 时间轴每次推进调用
+ *   replayLayers.attach()                        // 一次性挂上图层
+ *   replayLayers.renderDisasters(events)         // 收到推送时调用
  *   replayLayers.toggle('heatmap', visible)      // 控制单层显隐
  *
  * 注意: 所有渲染都建立在已存在的 olMap 实例上, 不接管 useMap 的注册表.
@@ -17,27 +20,13 @@ import Point from 'ol/geom/Point'
 import Circle from 'ol/geom/Circle'
 import { fromLonLat } from 'ol/proj'
 import { Style, Stroke, Fill, Circle as CircleStyle, Text } from 'ol/style'
-import {
-  apiReplayWeatherSnapshot,
-  apiReplayEarthquakes,
-  apiReplayEvents,
-} from '@/api/replay'
 
 const LEVEL_COLOR = { 1: '#3B82F6', 2: '#F59E0B', 3: '#F97316', 4: '#DC2626' }
 
-/** 雨强 -> 0..1 (24h 雨量, 100mm 满档) */
-function rainWeight(rain24h) {
-  if (rain24h == null) return 0
-  return Math.max(0, Math.min(1, rain24h / 100))
-}
-
-/** 雨强 -> 染色 */
-function rainColor(rain1h) {
-  if (rain1h == null || rain1h < 1) return '#94A3B8'
-  if (rain1h < 8)   return '#60A5FA'
-  if (rain1h < 16)  return '#FBBF24'
-  if (rain1h < 32)  return '#F97316'
-  return '#DC2626'
+/** 综合风险指数/等级 -> 热力权重 0..1 */
+function riskWeight(compIndex, compLevel) {
+  if (compIndex != null) return Math.max(0, Math.min(1, compIndex))
+  return Math.max(0, Math.min(1, (compLevel || 0) / 4))
 }
 
 /** 灾害等级 -> 影响半径 (米) */
@@ -47,63 +36,22 @@ function impactRadiusByLevel(level) {
 
 export function useReplayLayers(olMapRef) {
   const layers = {
-    heatmap:    null,    // 雨量热力
-    stations:   null,    // 气象站点位 (按 1h 雨强染色)
-    quake:      null,    // 地震震中波纹
+    heatmap:    null,    // 风险热力 (按综合风险指数)
+    stations:   null,    // 高风险站点位 (按综合等级染色)
     impact:     null,    // 事件影响范围 (Circle 几何, Web Mercator 米单位)
     eventDot:   null,    // 事件中心点
   }
-  let pulseStart = Date.now()
-  let rafId = null
   let attached = false
 
   function makeStationStyle(feat) {
-    const r1h = feat.get('rainfall_1h') ?? 0
-    const r24 = feat.get('rainfall_24h') ?? 0
-    const color = rainColor(r1h)
-    const radius = 4 + Math.min(8, r24 / 8)
+    const level = feat.get('comp_level') || 1
+    const color = LEVEL_COLOR[level]
+    const radius = 4 + level * 1.5
     const styles = [
       new Style({ image: new CircleStyle({ radius: radius + 4, fill: new Fill({ color: color + '33' }) }) }),
       new Style({ image: new CircleStyle({ radius, fill: new Fill({ color }), stroke: new Stroke({ color: '#fff', width: 1.5 }) }) })
     ]
     return styles
-  }
-
-  function makeQuakeStyle(feat) {
-    const mag = feat.get('magnitude') || 4
-    const isMain = feat.get('isMain') === true
-    const elapsed = (Date.now() - pulseStart) % 1800 / 1800
-    const color = mag >= 6 ? '#DC2626' : (mag >= 5 ? '#F97316' : '#F59E0B')
-    const baseR = 5 + (mag - 4) * 4
-    return [
-      new Style({
-        image: new CircleStyle({
-          radius: baseR + elapsed * 30,
-          fill: new Fill({ color: color + Math.round((1 - elapsed) * 60).toString(16).padStart(2, '0') }),
-          stroke: new Stroke({ color: color, width: 1.5 })
-        })
-      }),
-      new Style({
-        image: new CircleStyle({
-          radius: baseR,
-          fill: new Fill({ color }),
-          stroke: new Stroke({ color: isMain ? '#FEF3C7' : '#fff', width: isMain ? 3 : 1.5 })
-        }),
-        text: isMain ? new Text({
-          text: `M${mag.toFixed(1)} 主震`,
-          font: 'bold 11px "PingFang SC", sans-serif',
-          fill: new Fill({ color: '#7F1D1D' }),
-          stroke: new Stroke({ color: 'rgba(255,255,255,0.9)', width: 3 }),
-          offsetY: -baseR - 10,
-        }) : new Text({
-          text: `M${mag.toFixed(1)}`,
-          font: '10px "DIN Alternate", monospace',
-          fill: new Fill({ color: '#7F1D1D' }),
-          stroke: new Stroke({ color: 'rgba(255,255,255,0.9)', width: 2 }),
-          offsetY: -baseR - 8,
-        })
-      })
-    ]
   }
 
   function makeImpactStyle(feat) {
@@ -175,113 +123,74 @@ export function useReplayLayers(olMapRef) {
       zIndex: 32,
     })
     olMap.addLayer(layers.eventDot)
-
-    // 4) 地震震中 (zIndex 最高, 视觉穿透)
-    layers.quake = new VectorLayer({
-      source: new VectorSource(),
-      style: makeQuakeStyle,
-      zIndex: 34,
-    })
-    olMap.addLayer(layers.quake)
-
-    // 波纹动画
-    pulseStart = Date.now()
-    const tick = () => {
-      if (!attached) return
-      if (layers.quake?.getVisible() && layers.quake.getSource().getFeatures().length) {
-        layers.quake.changed()
-      }
-      rafId = requestAnimationFrame(tick)
-    }
-    tick()
   }
 
   function detach() {
     attached = false
-    if (rafId) cancelAnimationFrame(rafId)
-    rafId = null
     const olMap = olMapRef.value
     if (!olMap) return
     Object.values(layers).forEach(l => { if (l) olMap.removeLayer(l) })
   }
 
-  async function refresh(atIso) {
-    if (!attached || !atIso) return
+  /**
+   * 渲染某日推送的灾害判别结果。
+   * events: [{ station_code, station_name, lon, lat, comp_level, comp_index, ... }]
+   */
+  function renderDisasters(events) {
+    if (!attached) return
     const olMap = olMapRef.value
     if (!olMap) return
 
-    const [snapshot, quakes, eventsGeo] = await Promise.all([
-      apiReplayWeatherSnapshot(atIso).catch(() => []),
-      apiReplayEarthquakes(atIso).catch(() => []),
-      apiReplayEvents(atIso).catch(() => ({ features: [] })),
-    ])
-
-    // --- 雨量热力 + 站点 ---
+    const list = events || []
     const heatSrc = layers.heatmap.getSource()
     const stationSrc = layers.stations.getSource()
-    heatSrc.clear()
-    stationSrc.clear()
-    ;(snapshot || []).forEach(s => {
-      if (s.lon == null || s.lat == null) return
-      const pt = new Point(fromLonLat([s.lon, s.lat]))
-      const heatFeat = new Feature({ geometry: pt })
-      heatFeat.set('weight', rainWeight(s.rainfall_24h))
-      heatSrc.addFeature(heatFeat)
-
-      const stFeat = new Feature({ geometry: pt })
-      stFeat.set('rainfall_1h',  s.rainfall_1h)
-      stFeat.set('rainfall_24h', s.rainfall_24h)
-      stFeat.set('code', s.code)
-      stFeat.set('name', s.name)
-      stationSrc.addFeature(stFeat)
-    })
-
-    // --- 地震震中 (主震高亮) ---
-    const quakeSrc = layers.quake.getSource()
-    quakeSrc.clear()
-    let mainQuake = null
-    ;(quakes || []).forEach(q => {
-      if (!mainQuake || (q.magnitude || 0) > (mainQuake.magnitude || 0)) mainQuake = q
-    })
-    ;(quakes || []).forEach(q => {
-      if (q.lon == null || q.lat == null) return
-      const f = new Feature({ geometry: new Point(fromLonLat([q.lon, q.lat])) })
-      f.set('magnitude', q.magnitude)
-      f.set('isMain', q === mainQuake)
-      f.set('occurredAt', q.occurred_at)
-      f.set('locationName', q.location_name)
-      quakeSrc.addFeature(f)
-    })
-
-    // --- 灾害事件影响圈 + 中心点 ---
     const impactSrc = layers.impact.getSource()
     const dotSrc = layers.eventDot.getSource()
-    impactSrc.clear(); dotSrc.clear()
-    const features = eventsGeo?.features || []
-    features.forEach(feat => {
-      const coords = feat.geometry?.coordinates
-      const props = feat.properties || {}
-      if (!coords || coords[0] == null) return
-      const center3857 = fromLonLat(coords)
-      const radius = impactRadiusByLevel(props.level)
-      const cf = new Feature({ geometry: new Circle(center3857, radius) })
-      cf.set('level', props.level)
-      cf.set('type',  props.type)
-      cf.set('title', props.title)
+    heatSrc.clear(); stationSrc.clear(); impactSrc.clear(); dotSrc.clear()
+
+    list.forEach(e => {
+      const lon = e.lon, lat = e.lat
+      if (lon == null || lat == null) return
+      const center3857 = fromLonLat([lon, lat])
+      const level = e.comp_level || 1
+      const title = e.station_name || e.station_code
+
+      // 风险热力
+      const heatFeat = new Feature({ geometry: new Point(center3857) })
+      heatFeat.set('weight', riskWeight(e.comp_index, level))
+      heatSrc.addFeature(heatFeat)
+
+      // 高风险站点
+      const stFeat = new Feature({ geometry: new Point(center3857) })
+      stFeat.set('comp_level', level)
+      stFeat.set('code', e.station_code)
+      stFeat.set('name', e.station_name)
+      stationSrc.addFeature(stFeat)
+
+      // 影响圈
+      const cf = new Feature({ geometry: new Circle(center3857, impactRadiusByLevel(level)) })
+      cf.set('level', level)
+      cf.set('title', title)
       impactSrc.addFeature(cf)
 
+      // 中心点标注
       const df = new Feature({ geometry: new Point(center3857) })
-      df.set('level', props.level)
-      df.set('type',  props.type)
-      df.set('title', props.title)
-      df.set('id',    props.id)
+      df.set('level', level)
+      df.set('title', title)
+      df.set('id', e.station_code)
       dotSrc.addFeature(df)
     })
+  }
+
+  /** 清空所有回放专题图层 (回放跳转到无风险日时用) */
+  function clear() {
+    if (!attached) return
+    Object.values(layers).forEach(l => l && l.getSource().clear())
   }
 
   function toggle(key, visible) {
     if (layers[key]) layers[key].setVisible(visible)
   }
 
-  return { attach, detach, refresh, toggle, layers }
+  return { attach, detach, renderDisasters, clear, toggle, layers }
 }

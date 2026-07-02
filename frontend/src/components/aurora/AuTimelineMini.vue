@@ -3,10 +3,10 @@
     <span class="dot" :class="{ playing: replay.playing }"></span>
     <span class="time">{{ formattedNow }}</span>
     <button class="mini-btn" @click="replay.toggle()">{{ replay.playing ? '⏸' : '▶' }}</button>
-    <button class="mini-btn" @click="replay.jumpToQuake()" title="跳到主震时刻">⚡ 主震</button>
+    <button class="mini-btn" @click="replay.jumpToPeak()" title="跳到暴雨峰值时刻">⚡ 暴雨峰值</button>
     <div class="mini-bar" @click="onSeek" ref="barRef">
       <div class="mini-fill" :style="{ width: `${replay.progress * 100}%` }"></div>
-      <div class="mini-anchor" :style="{ left: `${quakeProgress * 100}%` }" title="泸定 6.8 主震"></div>
+      <div class="mini-anchor" :style="{ left: `${peakProgress * 100}%` }" title="暴雨峰值"></div>
     </div>
     <div class="mini-speed">
       <button
@@ -41,11 +41,11 @@ const formattedNow = computed(() => {
   return `${local.getUTCFullYear()}-${pad(local.getUTCMonth()+1)}-${pad(local.getUTCDate())} ${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`
 })
 
-const quakeProgress = computed(() => {
+const peakProgress = computed(() => {
   if (!replay.windowStart || !replay.windowEnd) return 0
   const a = new Date(replay.windowStart).getTime()
   const b = new Date(replay.windowEnd).getTime()
-  const q = new Date('2022-09-05T04:52:00Z').getTime()
+  const q = new Date('2022-09-06T04:00:00Z').getTime()
   return Math.max(0, Math.min(1, (q - a) / (b - a)))
 })
 

@@ -1,51 +1,165 @@
-"""组装灾害出行风险研判 Agent, 提供流式回复生成器。"""
+"""灾害出行风险研判 Agent — 原生 OpenAI 客户端 agentic loop。"""
 import os
+import json
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from agents import Agent, Runner, OpenAIChatCompletionsModel
 
-from spatial_analyse.tools.geo import geo_locate
-from spatial_analyse.tools.gis_query import query_station_disasters
-from spatial_analyse.tools.knowledge import disaster_kb
+from spatial_analyse.tools.geo import resolve_place
+from spatial_analyse.tools.gis_query import nearest_station, _fetch_eval_rows, summarize_disasters
+from spatial_analyse.tools.knowledge import lookup_knowledge
 
-# 显式加载本包目录下的 .env, 不依赖启动服务时的工作目录
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)
 
-_MODEL_ID = os.getenv("DASHSCOPE_MODEL_ID")
-_API_KEY = os.getenv("DASHSCOPE_API_KEY")
-_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+_MODEL_ID  = os.getenv("DASHSCOPE_MODEL_ID")
+_API_KEY   = os.getenv("DASHSCOPE_API_KEY")
+_BASE_URL  = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 _SYSTEM_PROMPT = (
-    "你是「四川灾害出行风险研判助手」。用户会告诉你想去的地点和时间, 你的任务是结合"
-    "该地就近气象站的历史灾害数据, 给出针对性的出行风险研判与建议, 而不是泛泛的科普。\n"
-    "工作流程 (自行判断调用哪些工具):\n"
-    "1. 用 geo_locate 把地名解析为经纬度;\n"
-    "2. 用 query_station_disasters 查该坐标就近站点的历史灾害统计 (含按月份分布);\n"
-    "3. 如需科普/防范细节, 用 disaster_kb 查对应灾种;\n"
-    "最后综合输出: 该地历史上哪些季节/月份、哪种灾害风险偏高 (引用 by_month 与"
-    " max_comp_level 等数据), 结合用户出行月份给出是否适宜、注意事项。\n"
-    "语气面向普通游客, 简洁、务实、给可执行建议。若地点无法定位, 礼貌请用户补充更"
-    "具体的地名。用中文回答。"
+    "你是「四川灾害出行风险研判助手」。\n\n"
+    "## 核心任务\n"
+    "用户告诉你目的地和出行时间后，调用工具查询数据，然后直接输出研判结论。"
+    "不要输出思考过程，不要解释你在做什么，只输出面向游客的最终建议。\n\n"
+    "## 工具调用顺序\n"
+    "1. geo_locate(place) — 把地名解析为经纬度；若返回 null 则礼貌请用户补充更具体的地名；\n"
+    "2. query_station_disasters(lon, lat) — 查就近站点历史灾害统计 (by_month / max_comp_level)；\n"
+    "3. disaster_kb(topic) — 可选，仅在需要具体防范措施时调用。\n\n"
+    "## 输出格式\n"
+    "- 先一句话给出「X 月去 Y 整体风险：低/中/高」的判断；\n"
+    "- 再列出该月历史上最常见 1-2 种灾害及发生频次（引用数据）；\n"
+    "- 最后给 2-3 条可执行的注意事项。\n"
+    "- 语气简洁务实，面向普通游客，全程用中文。"
 )
 
+# ── 工具 schema（OpenAI function calling 格式）──────────────────────────────
 
-def _make_model() -> OpenAIChatCompletionsModel:
-    client = AsyncOpenAI(api_key=_API_KEY, base_url=_BASE_URL)
-    return OpenAIChatCompletionsModel(model=_MODEL_ID, openai_client=client)
+_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "geo_locate",
+            "description": "将中文地名解析为经纬度坐标",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "place": {"type": "string", "description": "地名，如「九寨沟」「峨眉山」"}
+                },
+                "required": ["place"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_station_disasters",
+            "description": "查询给定经纬度就近气象站的历史灾害统计数据",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lon": {"type": "number", "description": "经度"},
+                    "lat": {"type": "number", "description": "纬度"},
+                },
+                "required": ["lon", "lat"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "disaster_kb",
+            "description": "查询特定灾种的科普与防范知识",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "灾种关键词，如「泥石流」「暴雨」"}
+                },
+                "required": ["topic"],
+            },
+        },
+    },
+]
+
+def _tool_geo_locate(place: str) -> str:
+    return json.dumps(resolve_place(place), ensure_ascii=False)
 
 
-def build_agent() -> Agent:
-    return Agent(
-        name="灾害出行风险研判助手",
-        instructions=_SYSTEM_PROMPT,
-        model=_make_model(),
-        tools=[geo_locate, query_station_disasters, disaster_kb],
-    )
+def _tool_query_station_disasters(lon: float, lat: float) -> str:
+    try:
+        st = nearest_station(lon, lat)
+        if not st:
+            return json.dumps({"error": "附近无气象站数据"}, ensure_ascii=False)
+        rows = _fetch_eval_rows(st["code"])
+        return json.dumps({"station": st, "summary": summarize_disasters(rows)},
+                          ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": f"查询失败: {e}"}, ensure_ascii=False)
 
+
+_TOOL_MAP = {
+    "geo_locate":             _tool_geo_locate,
+    "query_station_disasters": _tool_query_station_disasters,
+    "disaster_kb":            lookup_knowledge,
+}
+
+_TOOL_STATUS = {
+    "geo_locate":             "正在定位地点",
+    "query_station_disasters": "正在查询就近站点历史灾害",
+    "disaster_kb":            "正在查询灾害科普",
+}
+
+
+# ── 工具执行 ────────────────────────────────────────────────────────────────
+
+def _call_tool(name: str, arguments_json: str) -> str:
+    try:
+        args = json.loads(arguments_json)
+        fn   = _TOOL_MAP.get(name)
+        if fn is None:
+            return f"未知工具: {name}"
+        result = fn(**args)
+        return json.dumps(result, ensure_ascii=False) if not isinstance(result, str) else result
+    except Exception as e:
+        return f"工具调用失败: {e}"
+
+
+# ── thinking 过滤状态机 ──────────────────────────────────────────────────────
+
+class _ThinkFilter:
+    """流式过滤 <think>…</think> 块，返回应发给前端的净文本。"""
+
+    def __init__(self):
+        self._in   = False
+        self._buf  = ""
+
+    def feed(self, chunk: str) -> str:
+        out = ""
+        if self._in:
+            self._buf += chunk
+            if "</think>" in self._buf:
+                after       = self._buf.split("</think>", 1)[1]
+                self._in    = False
+                self._buf   = ""
+                out         = after
+        else:
+            if "<think>" in chunk:
+                before, rest = chunk.split("<think>", 1)
+                out        = before
+                self._in   = True
+                self._buf  = rest
+                if "</think>" in self._buf:
+                    after       = self._buf.split("</think>", 1)[1]
+                    self._in    = False
+                    self._buf   = ""
+                    out        += after
+            else:
+                out = chunk
+        return out
+
+
+# ── 主入口 ──────────────────────────────────────────────────────────────────
 
 async def stream_reply(messages: list):
-    """输入对话历史 [{role, content}...], 逐个 yield 事件 dict。
+    """输入对话历史 [{role, content}…]，逐个 yield 事件 dict。
 
     事件: {"type":"tool","name":str,"status":str}
           {"type":"token","text":str}
@@ -57,26 +171,85 @@ async def stream_reply(messages: list):
         return
 
     try:
-        agent = build_agent()
-        # Agents SDK 接受字符串或消息列表作为 input; 这里传对话历史列表
-        result = Runner.run_streamed(agent, input=messages)
-        async for event in result.stream_events():
-            if event.type == "raw_response_event":
-                data = getattr(event, "data", None)
-                delta = getattr(data, "delta", None)
-                if delta:
-                    yield {"type": "token", "text": delta}
-            elif event.type == "run_item_stream_event":
-                item = getattr(event, "item", None)
-                if item is not None and getattr(item, "type", "") == "tool_call_item":
-                    raw = getattr(item, "raw_item", None)
-                    tool_name = getattr(raw, "name", "工具")
-                    status = {
-                        "geo_locate": "正在定位地点",
-                        "query_station_disasters": "正在查询就近站点历史灾害",
-                        "disaster_kb": "正在查询灾害科普",
-                    }.get(tool_name, f"正在调用 {tool_name}")
-                    yield {"type": "tool", "name": tool_name, "status": status}
+        client = AsyncOpenAI(api_key=_API_KEY, base_url=_BASE_URL)
+
+        # 去掉前端欢迎语（第一条 assistant 消息），拼上 system prompt
+        clean = [m for i, m in enumerate(messages)
+                 if not (i == 0 and m.get("role") == "assistant")]
+        loop_msgs = [{"role": "system", "content": _SYSTEM_PROMPT}] + clean
+
+        for _ in range(6):  # 最多 6 轮工具调用，防止死循环
+            stream = await client.chat.completions.create(
+                model=_MODEL_ID,
+                messages=loop_msgs,
+                tools=_TOOLS,
+                tool_choice="auto",
+                stream=True,
+            )
+
+            # ── 收集本轮流式响应 ──
+            content_buf   = ""
+            tool_calls    = {}   # index → {id, name, arguments}
+            finish_reason = None
+            tf            = _ThinkFilter()
+
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                choice        = chunk.choices[0]
+                finish_reason = choice.finish_reason or finish_reason
+                delta         = choice.delta
+
+                # 正文 token
+                if delta.content:
+                    clean_text = tf.feed(delta.content)
+                    if clean_text:
+                        content_buf += clean_text
+                        yield {"type": "token", "text": clean_text}
+
+                # 工具调用增量
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_calls:
+                            tool_calls[idx] = {"id": "", "name": "", "arguments": ""}
+                        if tc.id:
+                            tool_calls[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                tool_calls[idx]["name"] += tc.function.name
+                            if tc.function.arguments:
+                                tool_calls[idx]["arguments"] += tc.function.arguments
+
+            # ── 判断是否继续循环 ──
+            if finish_reason == "tool_calls" and tool_calls:
+                # 把助手消息（含 tool_calls）追加进 messages
+                tc_list = [
+                    {"id": v["id"], "type": "function",
+                     "function": {"name": v["name"], "arguments": v["arguments"]}}
+                    for v in (tool_calls[k] for k in sorted(tool_calls))
+                ]
+                assistant_msg: dict = {"role": "assistant", "tool_calls": tc_list}
+                if content_buf:
+                    assistant_msg["content"] = content_buf
+                loop_msgs.append(assistant_msg)
+
+                # 执行工具，收集结果
+                for tc in tc_list:
+                    fn_name = tc["function"]["name"]
+                    yield {"type": "tool", "name": fn_name,
+                           "status": _TOOL_STATUS.get(fn_name, f"正在调用 {fn_name}")}
+                    result = _call_tool(fn_name, tc["function"]["arguments"])
+                    loop_msgs.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result,
+                    })
+                # 继续下一轮
+            else:
+                break   # 模型已给出最终回复，退出循环
+
         yield {"type": "done"}
+
     except Exception as e:
         yield {"type": "error", "message": f"AI 生成失败: {e}"}

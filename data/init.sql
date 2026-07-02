@@ -295,21 +295,6 @@ INSERT INTO gis.gis_layer (name, code, type, source_url, visible, z_index, descr
  ('灾害事件图层',  'biz_events',        'vector', '/api/disasters/geojson', TRUE, 15, '灾害事件多边形 + 中心点'),
  ('预警图层',      'biz_alerts',        'vector', '/api/alerts/geojson',    TRUE, 30, '预警事件图层 (高等级带脉冲)');
 
--- 一个进行中的灾害事件
-INSERT INTO biz.biz_disaster_event (code, title, type, level, location, affected_area, occurred_at, status, description, reporter_id) VALUES
- ('E20260518001','怀柔X村山体小型滑坡','landslide',2,
-  ST_SetSRID(ST_MakePoint(116.6311, 40.3164),4326),
-  ST_SetSRID(ST_GeomFromText('POLYGON((116.629 40.314, 116.633 40.314, 116.633 40.318, 116.629 40.318, 116.629 40.314))'),4326),
-  now() - interval '30 minute', 1, '位移监测点连续触发预警, 现场确认小规模滑坡', 2);
-
--- 预警事件示例 (挂到上面那条灾害事件)
-INSERT INTO biz.biz_alert (code, title, content, level, event_id, source, location, channels, status, triggered_at) VALUES
- ('A20260518001','怀柔X村滑坡黄色预警','现场已发现小规模滑坡, 请周边村民撤离 100m 缓冲区',2,
-  (SELECT id FROM biz.biz_disaster_event WHERE code='E20260518001'),
-  'event',
-  ST_SetSRID(ST_MakePoint(116.6311, 40.3164),4326),
-  'in_site,sms', 2, now() - interval '20 minute');
-
 -- 应急预案
 INSERT INTO biz.biz_emergency_plan (code, name, disaster_type, level, content, enabled) VALUES
  ('PLAN-LANDSLIDE-Y','滑坡黄色预警响应预案','landslide',2,'1.通知现场负责人 2.撤离100m缓冲区人员 3.每30分钟上报一次',TRUE),

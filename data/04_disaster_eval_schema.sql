@@ -1,10 +1,12 @@
 -- =====================================================
--- GCSJ-4 逐日逐站气象地质灾害判别结果 schema
--- 数据来源: biz.biz_weather_daily (2020-2023 逐日观测)
--- 回填脚本: 后端 POST /api/disaster-eval/run (DisasterEvalEngine)
--- 入库顺序: 04_weather_daily_schema.sql -> 05_disaster_eval_schema.sql
+-- GCSJ-4 逐日逐站气象地质灾害判别结果 schema (biz 层)
+-- 定位: biz = 分析结果 (gis = 原始空间数据源)
+-- 数据来源: gis.gis_weather_daily (2020-2023 逐日观测)
+-- 回填脚本: 后端 POST /api/disaster-eval/run (DisasterEvalEngine, 依据 data/算法 .md)
+-- 入库顺序: 03_gis_weather_schema.sql -> 04_disaster_eval_schema.sql
 --           -> load_weather_stations.py -> POST /api/disaster-eval/run
--- 说明: 结果仅入本表, 不写 biz_disaster_event / biz_alert
+-- 说明: 结果仅入本表, 不写 biz_disaster_event / biz_alert;
+--       高等级(橙/红)日通过 POST /api/disaster-eval/push?date= 推 WebSocket /topic/disasters
 -- =====================================================
 
 SET search_path TO biz, gis, public, postgis;
@@ -13,7 +15,7 @@ DROP TABLE IF EXISTS biz.biz_disaster_eval CASCADE;
 
 CREATE TABLE biz.biz_disaster_eval (
     id                 BIGSERIAL PRIMARY KEY,
-    station_code       VARCHAR(32) NOT NULL,         -- 关联 biz_weather_daily.station_code / biz_monitor_station.code
+    station_code       VARCHAR(32) NOT NULL,         -- 关联 gis.gis_weather_station.code / gis_weather_daily.station_code
     obs_date           DATE        NOT NULL,
     r_eff              NUMERIC(7,2),                 -- 前期有效降雨量 (15日衰减累加 α=0.85)
     dtr                NUMERIC(5,2),                 -- 气温日较差 Tmax - Tmin

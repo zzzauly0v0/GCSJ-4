@@ -1,8 +1,5 @@
 <template>
   <div class="alert-page">
-    <!-- ====== 时间轴: 与回放窗口绑定 ====== -->
-    <AuTimelineMini />
-
     <!-- ====== 顶部统计 ====== -->
     <div class="stats">
       <div v-for="s in statsData" :key="s.key" class="stat" :style="{'--c': s.color}">
@@ -40,6 +37,7 @@
             <el-option label="已确认" :value="3" />
             <el-option label="已关闭" :value="4" />
           </el-select>
+          <el-button type="primary" :icon="MagicStick" @click="genDlg = true">从风险研判生成</el-button>
           <el-button :icon="Refresh" @click="loadPage" circle />
         </div>
       </div>
@@ -59,6 +57,7 @@
             <div class="title-row">
               <span class="title">{{ row.title }}</span>
               <span class="code">{{ row.code }}</span>
+              <span v-if="row.source === 'eval'" class="src-tag">研判</span>
             </div>
             <div class="content">{{ row.content || '—' }}</div>
             <div class="meta">
@@ -93,6 +92,33 @@
         />
       </div>
     </div>
+
+    <!-- 从风险研判批量生成预警 -->
+    <el-dialog v-model="genDlg" title="从风险研判生成预警" width="460px">
+      <el-form :model="genForm" label-width="90px" size="default">
+        <el-form-item label="年份">
+          <el-select v-model="genForm.year" placeholder="年份" clearable style="width: 100%">
+            <el-option label="全部年份" :value="null" />
+            <el-option v-for="y in YEARS" :key="y" :label="String(y)" :value="y" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="最低等级">
+          <el-select v-model="genForm.minLevel" style="width: 100%">
+            <el-option label="蓝色及以上" :value="1" />
+            <el-option label="黄色及以上" :value="2" />
+            <el-option label="橙色及以上" :value="3" />
+            <el-option label="仅红色" :value="4" />
+          </el-select>
+        </el-form-item>
+        <div class="gen-hint">
+          扫描历史风险研判结果, 按「站点 + 日期」去重生成预警。重复生成不会产生重复记录。
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="genDlg = false">取消</el-button>
+        <el-button type="primary" :loading="genLoading" @click="onGenerate">生成</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -100,20 +126,22 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  BellFilled, Clock, Location, Promotion, Refresh, CaretTop
+  BellFilled, Clock, Location, Promotion, Refresh, CaretTop, MagicStick
 } from '@element-plus/icons-vue'
-import { apiAlertConfirm, apiAlertClose } from '@/api/alert'
-import { apiReplayAlerts } from '@/api/replay'
-import { useReplayStore } from '@/store/replay'
+import { apiAlertConfirm, apiAlertClose, apiAlertPage, apiAlertGenerateFromEval } from '@/api/alert'
 import { formatDateTime, levelMeta } from '@/utils/format'
 import AuTimelineMini from '@/components/aurora/AuTimelineMini.vue'
-
-const replayStore = useReplayStore()
 
 const rows = ref([])
 const total = ref(0)
 const loading = ref(false)
 const filter = reactive({ level: null, status: null, page: 1, size: 10 })
+
+// 从风险研判批量生成
+const YEARS = [2020, 2021, 2022, 2023]
+const genDlg = ref(false)
+const genLoading = ref(false)
+const genForm = reactive({ year: null, minLevel: 3 })
 
 const stats = ref({ total: 0, l1: 0, l2: 0, l3: 0, l4: 0 })
 
@@ -143,34 +171,38 @@ function onTab(level) {
 }
 
 /**
- * 数据来源: 回放接口 (按虚拟时刻过滤)
- * 不再走 /alerts 分页接口, 列表项由 ReplayController 返回的字段拼出
+ * 数据来源: /alerts 真实分页接口
+ * 列表按当前筛选分页; 统计卡另取全量按等级计数
  */
 async function loadPage() {
-  await replayStore.init()
-  const at = replayStore.virtualNowIso
-  if (!at) return
   loading.value = true
   try {
-    const list = await apiReplayAlerts(at, 500)
-    const all = (list || []).map(a => ({
+    const pageRes = await apiAlertPage({
+      level: filter.level ?? undefined,
+      status: filter.status ?? undefined,
+      page: filter.page,
+      size: filter.size,
+    })
+    rows.value = (pageRes?.records || []).map(a => ({
       id: a.id,
       code: a.code,
       title: a.title,
       content: a.content,
       level: a.level,
-      status: 1,
-      triggeredAt: a.triggered_at,
-      longitude: a.lon,
-      latitude:  a.lat,
-      channels: ['in_site'],
+      status: a.status,
+      source: a.source,
+      triggeredAt: a.triggeredAt,
+      longitude: a.longitude,
+      latitude: a.latitude,
+      channels: a.channels ? a.channels.split(',') : ['in_site'],
     }))
-    let filtered = all
-    if (filter.level != null) filtered = filtered.filter(r => r.level === filter.level)
-    total.value = filtered.length
-    rows.value  = filtered.slice((filter.page - 1) * filter.size, filter.page * filter.size)
+    total.value = pageRes?.total || 0
+
+    // 统计卡: 全量按等级计数 (size 取大值一次拉齐)
+    const allRes = await apiAlertPage({ page: 1, size: 1000 })
+    const all = allRes?.records || []
     stats.value = {
-      total: all.length,
+      total: allRes?.total || all.length,
       l1: all.filter(r => r.level === 1).length,
       l2: all.filter(r => r.level === 2).length,
       l3: all.filter(r => r.level === 3).length,
@@ -178,12 +210,6 @@ async function loadPage() {
     }
   } finally { loading.value = false }
 }
-
-let _alertDebounce = null
-watch(() => replayStore.virtualNow, () => {
-  if (_alertDebounce) return
-  _alertDebounce = setTimeout(() => { _alertDebounce = null; loadPage() }, 800)
-})
 
 async function onConfirm(row) {
   await ElMessageBox.confirm(`确认预警「${row.title}」?`, '确认操作', { type: 'warning' })
@@ -196,6 +222,17 @@ async function onClose(row) {
   await apiAlertClose(row.id)
   ElMessage.success('已关闭')
   loadPage()
+}
+
+async function onGenerate() {
+  genLoading.value = true
+  try {
+    const res = await apiAlertGenerateFromEval(genForm.year, genForm.minLevel)
+    ElMessage.success(`扫描 ${res?.scanned ?? 0} 条, 新增 ${res?.created ?? 0} 条, 跳过 ${res?.skipped ?? 0} 条`)
+    genDlg.value = false
+    filter.page = 1
+    loadPage()
+  } finally { genLoading.value = false }
 }
 
 onMounted(loadPage)
@@ -310,6 +347,11 @@ onMounted(loadPage)
     .code { font-family: var(--au-font-num); font-size: 11px; color: var(--au-text-secondary);
       padding: 1px 8px; border: 1px dashed var(--au-border-base); border-radius: 16px;
     }
+    .src-tag {
+      font-size: 11px; padding: 1px 8px; border-radius: 16px;
+      background: rgba(99, 102, 241, 0.10); color: #4F46E5;
+      border: 1px solid rgba(99, 102, 241, 0.24);
+    }
   }
   .content { font-size: 12px; color: var(--au-text-primary); margin-bottom: 8px; line-height: 1.5; }
   .meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: var(--au-text-secondary);
@@ -331,6 +373,8 @@ onMounted(loadPage)
 }
 
 .pager { padding: 12px 16px; display: flex; justify-content: flex-end; border-top: 1px solid var(--au-border-subtle); }
+
+.gen-hint { font-size: 12px; color: var(--au-text-secondary); line-height: 1.6; padding: 0 4px; }
 
 /* ============ 移动端适配 ============ */
 @media (max-width: 768px) {

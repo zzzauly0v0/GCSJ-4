@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.sql.Date;
@@ -16,10 +17,12 @@ import java.util.*;
 
 /**
  * 历史气象灾害判别接口。
- * - /run: 读 biz_weather_daily, 逐站调 DisasterEvalEngine, upsert 进 biz_disaster_eval (幂等)
+ * 数据分层: gis = 原始气象数据源 (gis_weather_station / gis_weather_daily), biz = 分析结果 (biz_disaster_eval)。
+ * - /run:  读 gis_weather_daily, 逐站调 DisasterEvalEngine, upsert 进 biz_disaster_eval (幂等)
+ * - /push: 回放到某日时推送该日高等级(橙/红)风险事件到 WebSocket /topic/disasters
  * - 其余只读接口供前端历史灾害分析页消费
  * - 结果只入 biz_disaster_eval, 不写 biz_disaster_event / biz_alert
- * - 沿用 ReplayController 的 JdbcTemplate 直查模式
+ * - 用 JdbcTemplate 直查, 不引入 entity/service/repo 三件套
  */
 @Tag(name = "历史气象灾害判别")
 @RestController
@@ -29,6 +32,7 @@ public class DisasterEvalController {
 
     private final JdbcTemplate jdbc;
     private final DisasterEvalEngine engine;
+    private final SimpMessagingTemplate messaging;
 
     /** 灾种 -> biz_disaster_eval 等级列 (供 /events 按灾种过滤) */
     private static final Map<String, String> TYPE_COL = Map.of(
@@ -45,7 +49,7 @@ public class DisasterEvalController {
                                            @RequestParam(required = false) Integer year) {
         StringBuilder sql = new StringBuilder("""
             SELECT station_code, obs_date, rainfall, temp_max, temp_min, rh_avg, wind_max
-            FROM   biz.biz_weather_daily
+            FROM   gis.gis_weather_daily
             WHERE  1=1
         """);
         List<Object> args = new ArrayList<>();
@@ -105,6 +109,40 @@ public class DisasterEvalController {
         return Result.ok(out);
     }
 
+    /**
+     * 按日推送: 查该日高等级(橙/红, comp_level>=minLevel)风险事件 + 站点经纬度,
+     * 通过 WebSocket /topic/disasters 广播给前端 (供时间轴回放到某天时模拟实时预警)。
+     * 前端回放到某日时调用本接口。
+     */
+    @Operation(summary = "按日推送高等级风险事件 (WebSocket /topic/disasters)")
+    @PostMapping("/push")
+    public Result<Map<String, Object>> push(@RequestParam String date,
+                                             @RequestParam(defaultValue = "3") int minLevel) {
+        List<Map<String, Object>> events = jdbc.queryForList("""
+            SELECT e.station_code, s.name AS station_name, e.obs_date,
+                   ST_X(s.location) AS lon, ST_Y(s.location) AS lat,
+                   s.region_code, e.r_eff, e.dtr,
+                   e.landslide_level, e.mudslide_level, e.freezethaw_level,
+                   e.collapse_level, e.comp_level, e.comp_index
+            FROM   biz.biz_disaster_eval e
+            LEFT   JOIN gis.gis_weather_station s ON s.code = e.station_code
+            WHERE  e.obs_date = ?::date
+              AND  e.comp_level >= ?
+            ORDER BY e.comp_level DESC, e.comp_index DESC NULLS LAST
+        """, date, minLevel);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("date", date);
+        payload.put("count", events.size());
+        payload.put("events", events);
+        messaging.convertAndSend("/topic/disasters", payload);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("date", date);
+        out.put("pushed", events.size());
+        return Result.ok(out);
+    }
+
     /** 单站逐日气象 + 风险时序 */
     @Operation(summary = "单站逐日气象+风险时序")
     @GetMapping("/series")
@@ -115,7 +153,7 @@ public class DisasterEvalController {
             SELECT w.obs_date, w.rainfall, w.temp_avg, w.temp_max, w.temp_min, w.rh_avg, w.wind_max,
                    e.r_eff, e.comp_level, e.landslide_level, e.mudslide_level,
                    e.freezethaw_level, e.collapse_level
-            FROM   biz.biz_weather_daily w
+            FROM   gis.gis_weather_daily w
             LEFT   JOIN biz.biz_disaster_eval e
                    ON e.station_code = w.station_code AND e.obs_date = w.obs_date
             WHERE  w.station_code = ?
@@ -133,9 +171,8 @@ public class DisasterEvalController {
                 "SELECT s.code, s.name, s.region_code, s.year_coverage, s.record_count, " +
                 "       ST_X(s.location) AS lon, ST_Y(s.location) AS lat, " +
                 "       COALESCE(MAX(e.comp_level), 0) AS max_level " +
-                "FROM biz.biz_monitor_station s " +
+                "FROM gis.gis_weather_station s " +
                 "LEFT JOIN biz.biz_disaster_eval e ON e.station_code = s.code " + yearFilter + " " +
-                "WHERE s.type = 'weather' " +
                 "GROUP BY s.code, s.name, s.region_code, s.year_coverage, s.record_count, s.location " +
                 "ORDER BY max_level DESC, s.code"));
     }
@@ -149,7 +186,10 @@ public class DisasterEvalController {
                                               @RequestParam(defaultValue = "1") int page,
                                               @RequestParam(defaultValue = "20") int size) {
         String col = TYPE_COL.getOrDefault(type, "comp_level");
-        StringBuilder where = new StringBuilder(" WHERE e." + col + " >= ? ");
+        // 未指定级别: 展示全部风险日 (>=1); 指定级别: 精确匹配该预警级别 (蓝/黄/橙/红)
+        StringBuilder where = new StringBuilder(level != null
+                ? " WHERE e." + col + " = ? "
+                : " WHERE e." + col + " >= ? ");
         List<Object> args = new ArrayList<>();
         args.add(level != null ? level : 1);
         if (year != null) { where.append(" AND EXTRACT(YEAR FROM e.obs_date) = ? "); args.add(year); }
@@ -165,8 +205,8 @@ public class DisasterEvalController {
                    e.r_eff, e.landslide_level, e.mudslide_level,
                    e.freezethaw_level, e.collapse_level, e.comp_level, e.comp_index
             FROM   biz.biz_disaster_eval e
-            LEFT   JOIN biz.biz_monitor_station s ON s.code = e.station_code
-        """ + where + " ORDER BY e.comp_level DESC, e.obs_date DESC LIMIT ? OFFSET ?",
+            LEFT   JOIN gis.gis_weather_station s ON s.code = e.station_code
+        """ + where + " ORDER BY e." + col + " DESC, e.obs_date DESC LIMIT ? OFFSET ?",
                 pageArgs.toArray());
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -185,9 +225,9 @@ public class DisasterEvalController {
 
         // 数据规模
         out.put("stationCount", jdbc.queryForObject(
-                "SELECT COUNT(*) FROM biz.biz_monitor_station WHERE type='weather'", Integer.class));
+                "SELECT COUNT(*) FROM gis.gis_weather_station", Integer.class));
         out.put("weatherDays", jdbc.queryForObject(
-                "SELECT COUNT(*) FROM biz.biz_weather_daily WHERE 1=1" + wYear, Integer.class));
+                "SELECT COUNT(*) FROM gis.gis_weather_daily WHERE 1=1" + wYear, Integer.class));
         out.put("riskDays", jdbc.queryForObject(
                 "SELECT COUNT(*) FROM biz.biz_disaster_eval WHERE comp_level >= 1" + wYear, Integer.class));
 
@@ -218,7 +258,7 @@ public class DisasterEvalController {
             SELECT e.station_code, s.name AS station_name, e.obs_date,
                    e.r_eff, e.comp_level
             FROM   biz.biz_disaster_eval e
-            LEFT   JOIN biz.biz_monitor_station s ON s.code = e.station_code
+            LEFT   JOIN gis.gis_weather_station s ON s.code = e.station_code
             WHERE  e.comp_level >= 1
         """ + (year != null ? " AND EXTRACT(YEAR FROM e.obs_date) = " + year + " " : "") +
             " ORDER BY e.comp_level DESC, e.r_eff DESC NULLS LAST, e.obs_date DESC LIMIT 8"));
@@ -237,11 +277,11 @@ public class DisasterEvalController {
         String yearFilter = year != null ? " AND EXTRACT(YEAR FROM w.obs_date) = " + year + " " : "";
         return Result.ok(jdbc.queryForList(
                 "SELECT s.region_code, r.name AS region_name, " + agg + " " +
-                "FROM biz.biz_weather_daily w " +
-                "JOIN biz.biz_monitor_station s ON s.code = w.station_code " +
+                "FROM gis.gis_weather_daily w " +
+                "JOIN gis.gis_weather_station s ON s.code = w.station_code " +
                 "LEFT JOIN biz.biz_disaster_eval e ON e.station_code = w.station_code AND e.obs_date = w.obs_date " +
                 "LEFT JOIN gis.gis_admin_region r ON r.adcode = s.region_code " +
-                "WHERE s.type = 'weather' " + yearFilter + " " +
+                "WHERE 1=1 " + yearFilter + " " +
                 "GROUP BY s.region_code, r.name " +
                 "ORDER BY value DESC NULLS LAST"));
     }

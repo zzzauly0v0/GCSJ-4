@@ -44,6 +44,13 @@ public class AlertController {
         return Result.ok(alertService.createFromEvent(eventId, level, title, content, channels));
     }
 
+    @Operation(summary = "从风险研判结果批量生成预警 (source=eval, 按站点+日期去重, 幂等)")
+    @PostMapping("/generate-from-eval")
+    public Result<Map<String, Object>> generateFromEval(@RequestParam(required = false) Integer year,
+                                                        @RequestParam(defaultValue = "3") int minLevel) {
+        return Result.ok(alertService.generateFromEval(year, minLevel));
+    }
+
     @Operation(summary = "分页查询预警")
     @GetMapping
     public Result<PageResult<AlertVO>> page(@RequestParam(required = false) String keyword,

@@ -6,15 +6,24 @@
         <span class="label">回放时刻</span>
         <span class="time">{{ formattedNow }}</span>
       </div>
-      <div class="au-tl-window">{{ replay.description || '加载中...' }}</div>
+      <div class="au-tl-years">
+        <span class="years-label">回放年份</span>
+        <button
+          v-for="y in replay.availableYears"
+          :key="y"
+          class="year-btn"
+          :class="{ active: replay.year === y }"
+          @click="replay.setYear(y)"
+        >{{ y }}</button>
+      </div>
     </div>
 
     <div class="au-tl-bar" @click="onSeek" ref="barRef">
       <div class="au-tl-bar-bg"></div>
       <div class="au-tl-bar-fill" :style="{ width: `${replay.progress * 100}%` }"></div>
-      <!-- 关键时刻锚点 -->
-      <div class="au-tl-anchor quake" :style="{ left: `${quakeProgress * 100}%` }" title="泸定 6.8 主震">
-        <span>主震</span>
+      <!-- 关键时刻锚点 (仅 2022 年内有汛期暴雨峰值) -->
+      <div v-if="replay.year === 2022" class="au-tl-anchor peak" :style="{ left: `${peakProgress * 100}%` }" title="暴雨峰值">
+        <span>暴雨峰值</span>
       </div>
       <div class="au-tl-thumb" :style="{ left: `${replay.progress * 100}%` }"></div>
     </div>
@@ -25,7 +34,7 @@
         <button class="ctrl-btn primary" @click="replay.toggle()">
           {{ replay.playing ? '⏸ 暂停' : '▶ 播放' }}
         </button>
-        <button class="ctrl-btn" @click="replay.jumpToQuake()" title="跳到主震时刻">⚡ 主震</button>
+        <button class="ctrl-btn" @click="replay.jumpToPeak()" title="跳到暴雨峰值时刻">⚡ 暴雨峰值</button>
       </div>
       <div class="au-tl-speed">
         <span class="speed-label">倍速</span>
@@ -48,11 +57,13 @@ import { useReplayStore } from '@/store/replay'
 const replay = useReplayStore()
 const barRef = ref(null)
 
+// 日尺度回放: 数据按天, 每推进一天地图刷新一次
 const speedOptions = [
-  { value: 60,    label: '1×' },     // 1s = 1min
-  { value: 600,   label: '10×' },    // 1s = 10min
-  { value: 1800,  label: '30×' },    // 1s = 30min
-  { value: 3600,  label: '60×' },    // 1s = 1h
+  { value: 14400, label: '1天/6s' },  // 6s = 1 天 (默认, 舒缓节奏, 通知不刷屏)
+  { value: 28800, label: '1天/3s' },  // 3s = 1 天 (较快, 有流动实时感)
+  { value: 86400, label: '1天/s' },   // 1s = 1 天
+  { value: 259200, label: '3天/s' },  // 1s = 3 天
+  { value: 604800, label: '1周/s' },  // 1s = 7 天 (快速扫过 4 年)
 ]
 
 const formattedNow = computed(() => {
@@ -65,11 +76,11 @@ const formattedNow = computed(() => {
   return `${local.getUTCFullYear()}-${pad(local.getUTCMonth()+1)}-${pad(local.getUTCDate())} ${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`
 })
 
-const quakeProgress = computed(() => {
+const peakProgress = computed(() => {
   if (!replay.windowStart || !replay.windowEnd) return 0
   const a = new Date(replay.windowStart).getTime()
   const b = new Date(replay.windowEnd).getTime()
-  const q = new Date('2022-09-05T04:52:00Z').getTime()
+  const q = new Date('2022-09-06T04:00:00Z').getTime()
   return Math.max(0, Math.min(1, (q - a) / (b - a)))
 })
 
@@ -126,6 +137,28 @@ onMounted(async () => {
 }
 .au-tl-window {
   font-size: 12px; color: #64748B;
+}
+.au-tl-years {
+  display: flex; align-items: center; gap: 6px;
+}
+.years-label { font-size: 11px; color: #94A3B8; margin-right: 4px; }
+.year-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: 1px solid #E5E7EB;
+  background: #FFFFFF;
+  color: #64748B;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--au-font-mono, monospace);
+  transition: all 0.15s;
+}
+.year-btn:hover { background: #F1F5F9; }
+.year-btn.active {
+  background: linear-gradient(135deg, #2563EB, #06B6D4);
+  color: white;
+  border-color: #2563EB;
+  font-weight: 600;
 }
 
 .au-tl-bar {

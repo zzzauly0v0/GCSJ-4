@@ -19,3 +19,7 @@ export const apiEvalHeatmap = (year, metric = 'rainfall') =>
 
 export const apiEvalSummary = (year) =>
   request.get('/disaster-eval/summary', { params: year ? { year } : {} })
+
+/** 按日推送该日高等级(橙/红)风险事件到 WebSocket /topic/disasters */
+export const apiEvalPush = (date, minLevel = 3) =>
+  request.post('/disaster-eval/push', null, { params: { date, minLevel } })

@@ -19,17 +19,9 @@
           <p class="hero-sub">
             综合气象观测、地质形变监测与空间分析，提供分级预警与决策支持
           </p>
-          <div class="entry-card" @click="router.push('/history')">
-            <div class="entry-title">历史灾害分析 →</div>
-            <div class="entry-sub">2020–2023 逐日气象 · 四类灾害判别</div>
-          </div>
         </div>
       </div>
     </section>
-
-    <!-- ============================================================
-         TIMELINE — 历史回放控制 (2022-09-05 汛期暴雨/滑坡窗口)
-    ============================================================ -->
     <section class="timeline-section">
       <AuTimelinePlayer />
     </section>
@@ -146,33 +138,25 @@
                 <input type="checkbox" v-model="scLayerToggle.city" @change="syncScLayer('city')" />
                 <span>市州</span>
               </label>
-              <label class="map-toggle">
-                <input type="checkbox" v-model="scLayerToggle.river" @change="syncScLayer('river')" />
-                <span>河流</span>
-              </label>
-              <label class="map-toggle">
-                <input type="checkbox" v-model="scLayerToggle.settlement" @change="syncScLayer('settlement')" />
-                <span>居民点</span>
-              </label>
               <span class="toggle-divider"></span>
               <label class="map-toggle">
-                <input type="checkbox" v-model="replayToggle.heatmap" @change="syncReplayLayer('heatmap')" />
-                <span>雨量热力</span>
+                <input type="checkbox" class="toggle-heatmap" v-model="replayToggle.heatmap" @change="syncReplayLayer('heatmap')" />
+                <span>风险热力</span>
               </label>
               <label class="map-toggle">
                 <input type="checkbox" v-model="replayToggle.stations" @change="syncReplayLayer('stations')" />
-                <span>气象站</span>
+                <span>站点</span>
               </label>
               <label class="map-toggle">
                 <input type="checkbox" v-model="replayToggle.impact" @change="syncReplayLayer('impact')" />
-                <span>受灾范围</span>
+                <span>站点名称</span>
               </label>
             </div>
             <div class="map-legend">
-              <span class="lg-item"><span class="lg-dot" style="background:#DC2626" />红色</span>
-              <span class="lg-item"><span class="lg-dot" style="background:#F97316" />橙色</span>
-              <span class="lg-item"><span class="lg-dot" style="background:#F59E0B" />黄色</span>
-              <span class="lg-item"><span class="lg-dot" style="background:#3B82F6" />蓝色</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#DC2626" />红色等级</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#F97316" />橙色等级</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#F59E0B" />黄色等级</span>
+              <span class="lg-item"><span class="lg-dot" style="background:#3B82F6" />蓝色等级</span>
             </div>
           </div>
         </template>
@@ -186,8 +170,8 @@
     <section class="body-grid">
 
       <AuCard
-        title="24 小时预警趋势"
-        subtitle="按等级 · 每小时聚合"
+        title="风险站点趋势"
+        subtitle="按综合等级 · 逐日累积"
         gradient-border
         dot
         class="card-trend"
@@ -207,7 +191,7 @@
 
       <AuCard
         title="灾害类型分布"
-        subtitle="过去 7 天"
+        subtitle="当日风险站点"
         dot
         class="card-pie"
       >
@@ -238,7 +222,7 @@
 
       <AuCard
         title="实时预警列表"
-        :subtitle="`共 ${alertStore.latest.length} 条`"
+        :subtitle="`${dayEvents.length ? replayStore.virtualDate + ' · ' : ''}共 ${dayEvents.length} 条`"
         dot
         class="card-list"
       >
@@ -247,35 +231,35 @@
         </template>
         <div class="alert-list">
           <div
-            v-for="a in alertStore.latest.slice(0, 7)"
-            :key="a.id"
+            v-for="a in dayEvents.slice(0, 7)"
+            :key="a.station_code"
             class="alert-item"
           >
             <span
               class="alert-level-bar"
-              :style="{ background: levelColor(a.level) }"
+              :style="{ background: levelColor(a.comp_level) }"
             />
             <div class="alert-main">
-              <div class="alert-title">{{ a.title || a.disasterType || '预警事件' }}</div>
+              <div class="alert-title">{{ a.station_name || a.station_code }} · {{ topTypeName(a) }}</div>
               <div class="alert-meta">
-                <span class="alert-region">{{ a.region || a.location || '—' }}</span>
-                <span class="alert-time">{{ formatTime(a.triggeredAt) }}</span>
+                <span class="alert-region">R_eff {{ Number(a.r_eff ?? 0).toFixed(0) }}</span>
+                <span class="alert-time">{{ String(a.obs_date).slice(0, 10) }}</span>
               </div>
             </div>
-            <span class="alert-level-tag" :style="levelTagStyle(a.level)">
-              {{ levelLabel(a.level) }}
+            <span class="alert-level-tag" :style="levelTagStyle(a.comp_level)">
+              {{ levelLabel(a.comp_level) }}
             </span>
           </div>
-          <div v-if="!alertStore.latest.length" class="alert-empty">
-            <span>当前无活跃预警</span>
-            <span class="muted">系统监测正常运行</span>
+          <div v-if="!dayEvents.length" class="alert-empty">
+            <span>{{ replayStore.virtualDate || '当前' }} 无风险事件</span>
+            <span class="muted">点击 ▶ 播放推进回放</span>
           </div>
         </div>
       </AuCard>
 
       <AuCard
-        title="传感数据流"
-        subtitle="LIVE · 3s 刷新"
+        title="当日风险指标"
+        subtitle="随回放日更新"
         dot
         class="card-sensors"
       >
@@ -295,22 +279,15 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import dayjs from 'dayjs'
 import * as echarts from 'echarts'
 
-import { useAlertStore } from '@/store/alert'
 import { useReplayStore } from '@/store/replay'
 import { apiDisasterGeoJson } from '@/api/disaster'
-import { apiAlertGeoJson } from '@/api/alert'
 import { apiRegionsGeoJson, apiRiversGeoJson, apiSettlementsGeoJson } from '@/api/gis'
-import {
-  apiReplayAlerts,
-  apiReplayEvents,
-  apiReplaySnapshot,
-} from '@/api/replay'
-import { apiEvalSummary } from '@/api/disasterEval'
+import { apiEvalSummary, apiEvalPush } from '@/api/disasterEval'
 import { useMap } from '@/hooks/useMap'
 import { useReplayLayers } from '@/hooks/useReplayLayers'
+import { useDisasterSocket } from '@/hooks/useDisasterSocket'
 
 import VectorLayer from 'ol/layer/Vector'
 import VectorSource from 'ol/source/Vector'
@@ -324,7 +301,6 @@ import AuKpiCard from '@/components/aurora/AuKpiCard.vue'
 import AuTimelinePlayer from '@/components/aurora/AuTimelinePlayer.vue'
 
 const router = useRouter()
-const alertStore = useAlertStore()
 const replayStore = useReplayStore()
 
 // ---------- Map ----------
@@ -473,7 +449,8 @@ const LV_NAME = ['无', '蓝色', '黄色', '橙色', '红色']
 const TYPE_NAME = { landslide: '降雨滑坡', mudslide: '降雨泥石流', freezethaw: '冻融滑坡', collapse: '坡面崩塌' }
 const TYPE_COLOR = { landslide: '#6366F1', mudslide: '#06B6D4', freezethaw: '#3B82F6', collapse: '#8B5CF6' }
 
-const histYear = ref(0)
+// 概览年份默认跟随回放年份 (回放切到哪年, 概览就展示哪年)
+const histYear = ref(replayStore.year)
 const histSummary = ref({
   stationCount: 0, weatherDays: 0, riskDays: 0,
   byType: {}, byLevel: [], byYear: [], topEvents: [],
@@ -555,14 +532,36 @@ function renderHistCharts() {
   }
 }
 
+// ---------- 当日风险事件 (由 /topic/disasters 每日推送驱动全部面板) ----------
+// events: [{ station_code, station_name, obs_date, lon, lat, r_eff, dtr,
+//            landslide_level, mudslide_level, freezethaw_level, collapse_level,
+//            comp_level, comp_index }]
+const dayEvents = ref([])
+// 逐日累积趋势历史: [{ date, 1, 2, 3, 4 }] — 随回放推进而增长
+const dailyHistory = ref([])
+
+/** 事件中占主导的灾种名 (取等级最高的灾种列) */
+function topTypeName(e) {
+  const cols = [
+    ['landslide_level', '滑坡'], ['mudslide_level', '泥石流'],
+    ['freezethaw_level', '冻融滑坡'], ['collapse_level', '崩塌'],
+  ]
+  let best = null, bestLv = 0
+  for (const [col, name] of cols) {
+    const lv = e[col] || 0
+    if (lv > bestLv) { bestLv = lv; best = name }
+  }
+  return best || '综合风险'
+}
+
 // ---------- Level meta ----------
 const LEVEL_COLORS = { 1: '#2563EB', 2: '#F59E0B', 3: '#F97316', 4: '#DC2626' }
 const LEVEL_LABELS = { 1: '蓝色', 2: '黄色', 3: '橙色', 4: '红色' }
 function levelColor(lv) { return LEVEL_COLORS[lv] || '#94A3B8' }
 function levelLabel(lv) { return LEVEL_LABELS[lv] || '未知' }
-function levelCount(lv) { return alertStore.latest.filter(a => a.level === lv).length }
+function levelCount(lv) { return dayEvents.value.filter(a => a.comp_level === lv).length }
 function lvPercent(lv) {
-  const t = alertStore.latest.length
+  const t = dayEvents.value.length
   return t === 0 ? 0 : Math.round((levelCount(lv) / t) * 100)
 }
 function levelTagStyle(lv) {
@@ -578,40 +577,57 @@ function ringStyle(lv) {
 }
 
 // ---------- KPIs ----------
-const eventCount = ref(0)
 function mkSpark(base) {
   return Array.from({ length: 14 }, (_, i) =>
     Math.max(0, Math.round(base * (0.55 + Math.sin(i * 0.65) * 0.4 + Math.random() * 0.3)))
   )
 }
+/** 环比: (今值 - 昨值)/昨值 的百分比整数; 昨值为 0 时今值>0 记 100, 同为 0 记 0 */
+function pctChange(today, prev) {
+  if (prev == null) return null            // 无前一日数据 -> 不显示趋势
+  if (prev === 0) return today > 0 ? 100 : 0
+  return Math.round(((today - prev) / prev) * 100)
+}
 const kpis = computed(() => {
-  const total = alertStore.latest.length
-  const red   = alertStore.latest.filter(a => a.level === 4).length
-  const conf  = alertStore.latest.filter(a => a.status === 3).length
+  const evs = dayEvents.value
+  const total = evs.length
+  const red   = evs.filter(a => a.comp_level === 4).length
+  const high  = evs.filter(a => a.comp_level >= 3).length
+  const maxReff = evs.reduce((m, a) => Math.max(m, Number(a.r_eff ?? 0)), 0)
+
+  // 环比昨日: 取累积历史的倒数第二天 (当前日为最后一天)
+  const hist = dailyHistory.value
+  const prev = hist.length >= 2 ? hist[hist.length - 2] : null
+  const prevTotal = prev ? (prev[1] + prev[2] + prev[3] + prev[4]) : null
+  const prevRed   = prev ? prev[4] : null
+  const prevHigh  = prev ? (prev[3] + prev[4]) : null
+  const prevReff  = prev ? (prev.maxReff ?? null) : null
+
+  // spark 用累积历史的当日总数序列, 反映回放推进
+  const spark = hist.slice(-14).map(d => (d[1] + d[2] + d[3] + d[4]))
   return [
-    { key: 'total',  label: '今日预警总数', value: total,            unit: '条', trend: 12, trendInvert: true,  sparkData: mkSpark(Math.max(total, 6)), tone: 'info' },
-    { key: 'red',    label: '红色级别预警', value: red,              unit: '条', trend: red ? 8 : -10, trendInvert: true, sparkData: mkSpark(Math.max(red, 2)), tone: 'danger' },
-    { key: 'conf',   label: '已确认事件',   value: conf,             unit: '条', trend: 6, trendInvert: false, sparkData: mkSpark(Math.max(conf, 3)), tone: 'success' },
-    { key: 'event',  label: '活跃灾害事件', value: eventCount.value, unit: '起', trend: 3, trendInvert: true,  sparkData: mkSpark(Math.max(eventCount.value, 2)), tone: 'warning' },
+    { key: 'total',  label: '当日风险站点', value: total,             unit: '站', trend: pctChange(total, prevTotal), trendInvert: true,  sparkData: spark.length ? spark : mkSpark(Math.max(total, 6)), tone: 'info' },
+    { key: 'red',    label: '红色级别',     value: red,               unit: '站', trend: pctChange(red, prevRed),     trendInvert: true,  sparkData: mkSpark(Math.max(red, 2)),  tone: 'danger' },
+    { key: 'high',   label: '橙红高风险',   value: high,              unit: '站', trend: pctChange(high, prevHigh),   trendInvert: true,  sparkData: mkSpark(Math.max(high, 3)), tone: 'warning' },
+    { key: 'reff',   label: '最大有效雨量', value: maxReff.toFixed(0), unit: 'mm', trend: pctChange(Math.round(maxReff), prevReff != null ? Math.round(prevReff) : null), trendInvert: true, sparkData: mkSpark(Math.max(maxReff / 10, 2)), tone: 'success' },
   ]
 })
 
-// ---------- Sensor readings ----------
-const sensorReadings = ref([
-  { key: 'rain', label: '降雨量',  value: '12.4', unit: 'mm',  color: '#2563EB' },
-  { key: 'wind', label: '风速',    value: '8.2',  unit: 'm/s', color: '#06B6D4' },
-  { key: 'disp', label: '位移',    value: '0.30', unit: 'mm',  color: '#F59E0B' },
-  { key: 'soil', label: '土壤湿度', value: '78',   unit: '%',   color: '#10B981' },
-  { key: 'temp', label: '温度',    value: '24.5', unit: '°C',  color: '#F97316' },
-])
-let sensorTimer = null
-function refreshSensors() {
-  sensorReadings.value[0].value = (8 + Math.random() * 20).toFixed(1)
-  sensorReadings.value[1].value = (4 + Math.random() * 12).toFixed(1)
-  sensorReadings.value[2].value = (Math.random() * 1.5).toFixed(2)
-  sensorReadings.value[3].value = Math.round(60 + Math.random() * 30).toString()
-  sensorReadings.value[4].value = (20 + Math.random() * 10).toFixed(1)
-}
+// ---------- 当日风险指标 (由 dayEvents 聚合, 随回放日更新) ----------
+const sensorReadings = computed(() => {
+  const evs = dayEvents.value
+  const n = evs.length
+  const avg = (fn) => n ? (evs.reduce((s, e) => s + (Number(fn(e)) || 0), 0) / n) : 0
+  const max = (fn) => evs.reduce((m, e) => Math.max(m, Number(fn(e)) || 0), 0)
+  const cnt = (col) => evs.filter(e => (e[col] || 0) >= 1).length
+  return [
+    { key: 'reff', label: '平均有效雨量', value: avg(e => e.r_eff).toFixed(1),   unit: 'mm', color: '#2563EB' },
+    { key: 'maxr', label: '最大有效雨量', value: max(e => e.r_eff).toFixed(1),   unit: 'mm', color: '#06B6D4' },
+    { key: 'dtr',  label: '平均日较差',   value: avg(e => e.dtr).toFixed(1),     unit: '°C', color: '#F59E0B' },
+    { key: 'ls',   label: '滑坡风险站',   value: String(cnt('landslide_level')), unit: '站', color: '#8B5CF6' },
+    { key: 'ms',   label: '泥石流风险站', value: String(cnt('mudslide_level')),  unit: '站', color: '#F97316' },
+  ]
+})
 
 // ---------- Charts ----------
 const trendEl = ref(null)
@@ -621,28 +637,13 @@ let pieChart = null
 let resizeFn = null
 
 function buildTrendOption() {
-  const buckets = Array.from({ length: 24 }, () => ({ 1: 0, 2: 0, 3: 0, 4: 0 }))
-  const now = dayjs()
-  alertStore.latest.forEach(a => {
-    const diff = now.diff(dayjs(a.triggeredAt), 'hour')
-    if (diff >= 0 && diff < 24) buckets[23 - diff][a.level] = (buckets[23 - diff][a.level] || 0) + 1
-  })
-  // 没有真实数据时给点示意数据，避免空白
-  if (alertStore.latest.length === 0) {
-    for (let i = 0; i < 24; i++) {
-      buckets[i] = {
-        1: Math.round(Math.random() * 4 + 1),
-        2: Math.round(Math.random() * 3),
-        3: Math.round(Math.random() * 2),
-        4: Math.round(Math.random()),
-      }
-    }
-  }
-  const xData = Array.from({ length: 24 }, (_, i) => now.subtract(23 - i, 'hour').format('HH:00'))
+  // 逐日回放累积: 每个回放日一根 x 轴刻度, 4 个等级站点数
+  const hist = dailyHistory.value.slice(-30)
+  const xData = hist.map(d => String(d.date).slice(5))   // MM-DD
   const isStack = trendStackMode.value === 'stack'
 
   const series = [4, 3, 2, 1].map(lv => ({
-    name: levelLabel(lv) + '预警',
+    name: levelLabel(lv) + '级',
     type: 'line',
     stack: isStack ? 'total' : undefined,
     smooth: true,
@@ -654,7 +655,7 @@ function buildTrendOption() {
         { offset: 1, color: LEVEL_COLORS[lv] + '08' },
       ]),
     } : undefined,
-    data: buckets.map(b => b[lv] || 0),
+    data: hist.map(d => d[lv] || 0),
   }))
 
   return {
@@ -681,7 +682,7 @@ function buildTrendOption() {
       data: xData,
       axisLine: { lineStyle: { color: '#CBD5E1' } },
       axisTick: { show: false },
-      axisLabel: { color: '#64748B', fontSize: 10, interval: 3 },
+      axisLabel: { color: '#64748B', fontSize: 10, interval: 'auto' },
     },
     yAxis: {
       type: 'value',
@@ -696,13 +697,18 @@ function buildTrendOption() {
 }
 
 function buildPieOption() {
-  const types = [
-    { name: '滑坡',     value: 28, color: '#6366F1' },
-    { name: '泥石流',   value: 22, color: '#06B6D4' },
-    { name: '崩塌',     value: 16, color: '#3B82F6' },
-    { name: '地面沉降', value: 12, color: '#8B5CF6' },
-    { name: '洪涝',     value:  9, color: '#0EA5E9' },
+  // 当日风险站点按灾种统计 (每站可能命中多灾种, 各计一次)
+  const evs = dayEvents.value
+  const defs = [
+    { col: 'landslide_level',  name: '滑坡',     color: '#6366F1' },
+    { col: 'mudslide_level',   name: '泥石流',   color: '#06B6D4' },
+    { col: 'freezethaw_level', name: '冻融滑坡', color: '#3B82F6' },
+    { col: 'collapse_level',   name: '崩塌',     color: '#8B5CF6' },
   ]
+  const types = defs
+    .map(d => ({ name: d.name, value: evs.filter(e => (e[d.col] || 0) >= 1).length, color: d.color }))
+    .filter(t => t.value > 0)
+  if (!types.length) types.push({ name: '当日无风险', value: 1, color: '#E2E8F0' })
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -763,53 +769,61 @@ function renderCharts() {
   }
 }
 
-// ---------- Time formatter ----------
-function formatTime(t) {
-  if (!t) return '—'
-  return dayjs(t).format('MM-DD HH:mm')
-}
+// ---------- 回放推送 ----------
+// 收到 /topic/disasters 按日推送: 地图专题图层 + 全部面板 (KPI/等级/列表/图表/指标) 一起刷新
+useDisasterSocket((payload) => {
+  const events = payload?.events || []
+  replayLayers.renderDisasters(events)
+
+  // 驱动全部面板的当日数据
+  dayEvents.value = events
+
+  // 累积逐日趋势 (同一天重复推送则覆盖, 保留最近 60 天)
+  if (payload?.date) {
+    const bucket = { date: payload.date, 1: 0, 2: 0, 3: 0, 4: 0, maxReff: 0 }
+    events.forEach(e => {
+      const lv = e.comp_level || 0
+      if (bucket[lv] != null) bucket[lv]++
+      bucket.maxReff = Math.max(bucket.maxReff, Number(e.r_eff ?? 0))
+    })
+    const hist = dailyHistory.value
+    const last = hist[hist.length - 1]
+    if (last && last.date === payload.date) hist[hist.length - 1] = bucket
+    else hist.push(bucket)
+    if (hist.length > 60) hist.shift()
+    dailyHistory.value = [...hist]
+  }
+
+  renderCharts()
+})
 
 // ---------- Lifecycle ----------
 /**
- * reloadAll — 按 replayStore.virtualNow (虚拟当前时刻) 拉数据
- * 原 fetchLatest / apiAlertGeoJson 的实时数据接口在回放模式下不再使用,
- * 全部由 /api/replay/* 按虚拟时刻过滤后返回
+ * reloadAll — 底图静态灾害点 GeoJSON (仅初始化一次即可) + 触发当前虚拟日推送。
+ * 所有面板/专题图层的实时数据均来自 pushDay() -> /topic/disasters 推送。
  */
 async function reloadAll() {
   await replayStore.init()
-  const at = replayStore.virtualNowIso
-  if (!at) return
   try {
-    const [alerts, eventsGeo, snapshot] = await Promise.all([
-      apiReplayAlerts(at, 20).catch(() => []),
-      apiReplayEvents(at).catch(() => ({ features: [] })),
-      apiReplaySnapshot(at).catch(() => null),
-    ])
-    // 把 replay 数据灌进 alertStore.latest, 现有图表/列表零改动复用
-    alertStore.latest = alerts.map(a => ({
-      id: a.id,
-      code: a.code,
-      title: a.title,
-      content: a.content,
-      level: a.level,
-      status: 1,
-      triggeredAt: a.triggered_at,
-      region: a.region_code,
-      disasterType: a.event_type,
-    }))
+    const eventsGeo = await apiDisasterGeoJson().catch(() => ({ type: 'FeatureCollection', features: [] }))
     loadGeoJson('disasters', eventsGeo)
-    loadGeoJson('alerts', { type: 'FeatureCollection', features: [] })
-    eventCount.value = snapshot?.activeEvents ?? eventsGeo?.features?.length ?? 0
-    // 同步回放专题图层 (雨量热力 / 气象站 / 受灾范围)
-    replayLayers.refresh(at)
-    // 用快照里最大区域 1h 雨更新 sensor 卡
-    if (snapshot?.rainByRegion?.length) {
-      const top = snapshot.rainByRegion[0]
-      sensorReadings.value[0].value = (top.rainfall_1h ?? 0).toFixed(1)
-      sensorReadings.value[3].value = String(Math.round(60 + (top.rainfall_24h ?? 0) * 0.4))
-    }
   } catch (_) {}
-  renderCharts()
+  // 首屏 / 时间推进后推送当前虚拟日的风险事件 (回推后驱动全部面板)
+  pushDay()
+}
+
+/** 按当前虚拟日期触发后端推送 (WebSocket 回渲染地图) */
+let _lastPushedDate = null
+async function pushDay() {
+  const date = replayStore.virtualDate
+  if (!date || date === _lastPushedDate) return
+  _lastPushedDate = date
+  try {
+    // minLevel=1: 蓝/黄/橙/红全部风险日都上图, 地图数据更丰富、贴合时间轴推进
+    await apiEvalPush(date, 1)   // 结果经 /topic/disasters 回推, 由 useDisasterSocket 渲染
+  } catch (_) {
+    replayLayers.clear()
+  }
 }
 
 onMounted(async () => {
@@ -819,8 +833,9 @@ onMounted(async () => {
   setTimeout(async () => {
     await attachSichuanLayers()
     replayLayers.attach()
-    // 首屏立刻把当前虚拟时刻的专题数据画上
-    if (replayStore.virtualNowIso) replayLayers.refresh(replayStore.virtualNowIso)
+    // 图层挂好后, 重新推送当前虚拟日 (reloadAll 时可能早于图层挂载)
+    _lastPushedDate = null
+    pushDay()
   }, 0)
   renderCharts()
   loadHistSummary()
@@ -831,7 +846,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (resizeFn) window.removeEventListener('resize', resizeFn)
-  if (sensorTimer) clearInterval(sensorTimer)
   trendChart?.dispose(); trendChart = null
   pieChart?.dispose();   pieChart = null
   histPieChart?.dispose();  histPieChart = null
@@ -839,19 +853,26 @@ onBeforeUnmount(() => {
   replayLayers.detach()
 })
 
-// 年份切换 -> 重新拉历史概览
-watch(histYear, () => loadHistSummary())
+// 年份切换 -> 重新拉历史概览; 选中具体年份时同步驱动回放年份 (双向锁定)
+watch(histYear, (y) => {
+  loadHistSummary()
+  if (y && y !== replayStore.year) replayStore.setYear(y)
+})
 
-watch([() => alertStore.latest.length, trendStackMode], () => renderCharts())
+// 趋势图堆叠/折线切换 -> 重绘
+watch(trendStackMode, () => renderCharts())
 
-// 虚拟时间推进 -> 重新拉数据 (节流: 每 1s 最多一次, 避免高倍速狂调接口)
-let _replayDebounce = null
-watch(() => replayStore.virtualNow, () => {
-  if (_replayDebounce) return
-  _replayDebounce = setTimeout(() => {
-    _replayDebounce = null
-    reloadAll()
-  }, 1000)
+// 回放年份切换 -> 清空逐日累积历史 (新的一年重新累积) + 同步概览年份
+watch(() => replayStore.year, (y) => {
+  dailyHistory.value = []
+  dayEvents.value = []
+  // 概览面板始终与回放年份保持一致 (上面选 2020, 下面概览也切到 2020)
+  if (histYear.value !== y) histYear.value = y
+})
+
+// 虚拟"日期"推进 -> 重新拉数据 (数据按天, 只在跨天时触发, 天然与地图推送同步)
+watch(() => replayStore.virtualDate, (d) => {
+  if (d) reloadAll()
 })
 </script>
 
@@ -1060,6 +1081,7 @@ watch(() => replayStore.virtualNow, () => {
   user-select: none;
 }
 .map-toggle input { accent-color: #6366F1; }
+.map-toggle input.toggle-heatmap { accent-color: #F97316; }
 .toggle-divider {
   width: 1px;
   height: 14px;
