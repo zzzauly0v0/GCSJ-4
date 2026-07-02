@@ -142,3 +142,14 @@ def test_match_place_prefers_more_specific():
 
 def test_match_place_no_match():
     assert match_place("上海东方明珠", _cands()) is None
+
+
+def test_match_place_short_district_no_false_positive():
+    cands = [
+        {"name": "西区", "lon": 101.72, "lat": 26.58, "source": "region", "level": 3},
+        {"name": "东区", "lon": 101.71, "lat": 26.55, "source": "region", "level": 3},
+    ]
+    # "西岭雪山" 不应因 西区->西 的过度归一化而误命中
+    assert match_place("西岭雪山", cands) is None
+    # 但用户直接输入 "西区" 仍应精确命中
+    assert match_place("西区", cands)["name"] == "西区"

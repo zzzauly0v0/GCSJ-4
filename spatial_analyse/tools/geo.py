@@ -41,7 +41,8 @@ def match_place(place: str, candidates: list) -> dict:
             continue
         if q == raw or q == key:
             exact.append(c)
-        elif key in q or q in key:
+        elif len(key) >= 2 and (key in q or q in key):
+            # 归一化后 key 过短 (如 西区->西) 时跳过子串匹配, 避免误命中任何含该字的查询
             contains.append(c)
 
     pool = exact or contains
