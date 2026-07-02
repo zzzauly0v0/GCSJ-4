@@ -3,6 +3,8 @@ import json
 
 from agents import function_tool
 
+from spatial_analyse.tools.db import DB_DSN, connect
+
 # 行政区划名归一化: 去掉这些后缀后再比较
 _REGION_SUFFIXES = ("自治州", "省", "市", "州", "县", "区")
 
@@ -46,6 +48,39 @@ def match_place(place: str, candidates: list) -> dict:
     if not pool:
         return None
     return max(pool, key=_specificity)
+
+
+def load_place_candidates(dsn: str = DB_DSN) -> list:
+    """从库里加载站点名 + 行政区划名候选 (含经纬度)。
+
+    station 用 location 点, region 用 center 点。center 为空的区划跳过。
+    """
+    sql = """
+        SELECT name,
+               ST_X(location) AS lon, ST_Y(location) AS lat,
+               'station' AS source, NULL::int AS level
+        FROM gis.gis_weather_station
+        WHERE location IS NOT NULL
+        UNION ALL
+        SELECT name,
+               ST_X(center) AS lon, ST_Y(center) AS lat,
+               'region' AS source, level
+        FROM gis.gis_admin_region
+        WHERE center IS NOT NULL
+    """
+    import psycopg2.extras
+    conn = connect(dsn)
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql)
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+    return [
+        {"name": r["name"], "lon": float(r["lon"]), "lat": float(r["lat"]),
+         "source": r["source"], "level": r["level"]}
+        for r in rows
+    ]
 
 
 def resolve_place(place: str, geocode=None) -> dict:
