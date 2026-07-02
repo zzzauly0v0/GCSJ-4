@@ -144,6 +144,6 @@ def geo_locate(place: str) -> str:
     Args:
         place: 中文地名, 如「九寨沟」「峨眉山」「成都都江堰」。
     Returns:
-        JSON 字符串: {found, name, lon, lat, message}
+        JSON 字符串: {found, name, lon, lat, source, in_sichuan, message}
     """
     return json.dumps(resolve_place(place), ensure_ascii=False)
