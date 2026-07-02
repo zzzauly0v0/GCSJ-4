@@ -6,7 +6,7 @@ import psycopg2.extras
 
 from agents import function_tool
 
-DB_DSN = "host=localhost port=5432 dbname=gcsj user=gcsj password=gcsj123"
+from spatial_analyse.tools.db import DB_DSN
 
 # 四类灾种列 -> 中文名
 _HAZARD_COLS = {
