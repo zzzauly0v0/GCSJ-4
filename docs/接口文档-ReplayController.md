@@ -4,7 +4,7 @@
 >
 > - 基础路径（@RequestMapping）：`/api/replay`
 > - 统一返回包装：`Result<T>`（业务码 + 数据）
-> - 数据来源：`spatial_analyse/replay_data_gen.py` 离线生成的 2022-09-05~07 四川泸定 6.8 级地震模拟回放数据
+> - 数据来源：`spatial_analyse/replay_data_gen.py` 离线生成的 2022-09-05~07 四川汛期暴雨/滑坡模拟回放数据
 > - 实现策略：故意用 `JdbcTemplate` 直查多表，**不走 entity / service / repository 三件套**——预警与事件在 Python 端规则引擎已离线计算入库，后端只做"按虚拟时刻过滤"的查询服务
 
 ---
@@ -43,17 +43,12 @@
 | | 输入：查询参数 `at` |
 | | 输出：`Result<Map<String,Object>>` —— `FeatureCollection { type, features[] }` |
 | | 路由：`GET /api/replay/events/geojson` |
-| **方法七** | `earthquakes(OffsetDateTime at)` |
-| | 功能：截止虚拟时刻的地震事件列表（主震 + 余震 + 背景震），含震源位置/震级/深度 |
-| | 输入：查询参数 `at` |
-| | 输出：`Result<List<Map<String,Object>>>` —— 地震行集 |
-| | 路由：`GET /api/replay/earthquakes` |
-| **方法八** | `weatherSnapshot(OffsetDateTime at)` |
+| **方法七** | `weatherSnapshot(OffsetDateTime at)` |
 | | 功能：全省气象站某虚拟时刻雨量快照，供地图染色 + 热力层 |
 | | 输入：查询参数 `at` |
 | | 输出：`Result<List<Map<String,Object>>>` —— 各站点最近一次观测（含坐标 + 多要素） |
 | | 路由：`GET /api/replay/weather/snapshot` |
-| **方法九** | `stations(String type)` |
+| **方法八** | `stations(String type)` |
 | | 功能：监测站列表（不随时间变化），可按 `type` 过滤（weather / geo） |
 | | 输入：查询参数 `type`（可空） |
 | | 输出：`Result<List<Map<String,Object>>>` —— 监测站行集 |
@@ -110,30 +105,25 @@ flowchart TD
     Q2A --> OUT2
     Q2B --> OUT2
 
-    %% ---------- 预警 / 事件 / 地震 ----------
+    %% ---------- 预警 / 事件 ----------
     D1 -->|地图与列表展示| D3{"展示对象 ?"}:::decision
     D3 -->|预警列表| P3A["alerts(at, limit)<br/>LEFT JOIN 灾害事件"]:::process
     D3 -->|事件 GeoJSON| P3B["eventsGeoJson(at)<br/>行集 → FeatureCollection"]:::process
-    D3 -->|地震事件| P3C["earthquakes(at)"]:::process
     D3 -->|气象站雨量快照<br/>地图染色 / 热力| P3D["weatherSnapshot(at)<br/>子查询取每站最新观测"]:::process
     Q3A[("biz_alert")]:::store
     Q3B[("biz_disaster_event")]:::store
-    Q3C[("biz_earthquake_event")]:::store
     Q3D[("biz_monitor_station<br/>+biz_weather_observation")]:::store
     P3A --> Q3A
     P3A --> Q3B
     P3B --> Q3B
-    P3C --> Q3C
     P3D --> Q3D
 
     OUT3A[/"AlertRow[]"/]:::io
     OUT3B[/"FeatureCollection"/]:::io
-    OUT3C[/"EarthquakeRow[]"/]:::io
     OUT3D[/"StationSnapshot[]"/]:::io
     Q3A --> OUT3A
     Q3B --> OUT3A
     Q3B --> OUT3B
-    Q3C --> OUT3C
     Q3D --> OUT3D
 
     %% ---------- 静态站点 ----------
@@ -151,7 +141,6 @@ flowchart TD
     OUT2 --> END1
     OUT3A --> END1
     OUT3B --> END1
-    OUT3C --> END1
     OUT3D --> END1
     OUT4 --> END1
 ```
@@ -216,20 +205,7 @@ flowchart TD
 | description | String | text | 描述 |
 | deleted | Boolean | `deleted`，默认 false | 软删 |
 
-### 3.6 `biz.biz_earthquake_event` · 地震事件
-
-| 字段 | 类型 | 列名 / 约束 | 说明 |
-| --- | --- | --- | --- |
-| id | Long | 主键 | |
-| code | String | `code` | 地震编号 |
-| occurredAt | OffsetDateTime | `occurred_at`，非空 | 发震时刻（UTC） |
-| magnitude | Double | `magnitude` | 震级 M |
-| depthKm | Double | `depth_km` | 震源深度 km |
-| epicenter | Point | `geometry(Point, 4326)` | 震中坐标 |
-| locationName | String | `location_name` | 文字位置（如"四川泸定"） |
-| regionCode | String | `region_code` | 行政区划 |
-
-### 3.7 `gis.gis_admin_region` · 行政区划
+### 3.6 `gis.gis_admin_region` · 行政区划
 
 > 仅在 `snapshot` 中作为关联表使用，按 `adcode` 与监测站做 join，取 `name` 作为市州名。
 
@@ -262,7 +238,7 @@ flowchart TD
 | --- | --- | --- |
 | startAt | OffsetDateTime | 回放数据起始时刻 |
 | endAt | OffsetDateTime | 回放数据结束时刻 |
-| description | String | 文案，固定为"2022-09-05 ~ 09-07 四川泸定 6.8 级地震窗口" |
+| description | String | 文案，固定为"2022-09-05 ~ 09-07 四川汛期暴雨/滑坡回放窗口" |
 
 ### 4.3 出参 · `SnapshotVO`（`/snapshot`）
 
@@ -334,21 +310,7 @@ GeoJSON `FeatureCollection`，每个 `Feature.properties` 包含：
 
 `Feature.geometry`：`{ type: "Point", coordinates: [lon, lat] }`
 
-### 4.8 出参 · `EarthquakeRow`（`/earthquakes`）
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | Long | 地震 id |
-| code | String | 地震编号 |
-| occurred_at | OffsetDateTime | 发震时刻 |
-| magnitude | Double | 震级 M |
-| depth_km | Double | 震源深度 km |
-| lon | Double | 震中经度 |
-| lat | Double | 震中纬度 |
-| location_name | String | 位置文字 |
-| region_code | String | 行政区划 |
-
-### 4.9 出参 · `WeatherSnapshotRow`（`/weather/snapshot`）
+### 4.8 出参 · `WeatherSnapshotRow`（`/weather/snapshot`）
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -363,7 +325,7 @@ GeoJSON `FeatureCollection`，每个 `Feature.properties` 包含：
 | humidity | Double | 湿度 |
 | wind_speed | Double | 风速 |
 
-### 4.10 出参 · `StationRow`（`/stations`）
+### 4.9 出参 · `StationRow`（`/stations`）
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -380,7 +342,7 @@ GeoJSON `FeatureCollection`，每个 `Feature.properties` 包含：
 ## 五、设计说明（按 controller 语义补充）
 
 1. **故意不走分层**：本模块定位为"演示回放服务"，数据全部由 Python 端预算好，后端零业务，所以放弃 entity/service/repo，直接 `JdbcTemplate` 写 SQL。如未来要接入真实流式数据，再按规范重构为 `IReplayService` + Repository。
-2. **虚拟时间过滤**：所有"按时刻"接口（snapshot / alerts / events / earthquakes / weatherSnapshot）都通过 `WHERE 时间字段 <= at` 实现切片。`weatherSnapshot` 用了相关子查询取每个站点 `observed_at <= at` 的最新一条，避免引入窗口函数依赖。
+2. **虚拟时间过滤**：所有"按时刻"接口（snapshot / alerts / events / weatherSnapshot）都通过 `WHERE 时间字段 <= at` 实现切片。`weatherSnapshot` 用了相关子查询取每个站点 `observed_at <= at` 的最新一条，避免引入窗口函数依赖。
 3. **PostGIS 字段**：所有空间字段用 `ST_X(geom)` / `ST_Y(geom)` 拆出经纬度，前端直接拿到数字而不是 WKT。
 4. **GeoJSON 拼装**：`eventsGeoJson` 在后端拼好 FeatureCollection，省去前端二次转换；预警接口 `/alerts` 不走 GeoJSON，是因为前端常以列表形式渲染并附带跳转操作。
 5. **限流建议**：`weatherSnapshot` 在 `at` 较晚时会走全表"取每站最新一条"的子查询，建议给 `(station_code, observed_at)` 建联合索引；前端 `at` 大幅跳变时配合防抖（≥ 500ms）。

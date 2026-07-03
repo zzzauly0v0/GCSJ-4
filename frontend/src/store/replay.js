@@ -10,10 +10,21 @@
  *   watch(() => replay.virtualNow, (t) => loadByTime(t))
  */
 import { defineStore } from 'pinia'
-import { apiReplayWindow } from '@/api/replay'
+
+// 回放按"年"进行: 选定某年后在 该年 1/1 → 12/31 区间内逐日回放
+const DEFAULT_YEAR = 2022                 // 默认年份 (2022-09 有汛期暴雨/滑坡峰值)
+const AVAILABLE_YEARS = [2020, 2021, 2022, 2023]
+// 关键锚点: 2022-09 汛期暴雨/滑坡窗口 (仅 2022 年内有效)
+const PEAK_DAY = '2022-09-06T00:00:00Z'
+const PEAK_YEAR = 2022
 
 export const useReplayStore = defineStore('replay', {
   state: () => ({
+    /** 当前回放年份 */
+    year: DEFAULT_YEAR,
+    /** 可选年份列表 (供时间轴年份选择器) */
+    availableYears: AVAILABLE_YEARS,
+
     /** ISO 字符串 */
     windowStart: null,
     windowEnd: null,
@@ -22,8 +33,8 @@ export const useReplayStore = defineStore('replay', {
     /** Date 对象 */
     virtualNow: null,
 
-    /** 倍速: 1 = 实时, 60 = 1s 真实 = 1min 虚拟, 1800 = 1s = 30min */
-    speed: 600,
+    /** 倍速: 日尺度回放, 14400 = 6s 真实 = 1 天虚拟 (数据按天, 地图每 6s 推进一天; 放慢默认节奏避免通知刷屏) */
+    speed: 14400,
 
     /** 状态 */
     playing: false,
@@ -47,16 +58,30 @@ export const useReplayStore = defineStore('replay', {
     virtualNowIso(state) {
       return state.virtualNow ? state.virtualNow.toISOString() : null
     },
+    /** 当前虚拟日期 YYYY-MM-DD (供按日推送 /disaster-eval/push) */
+    virtualDate(state) {
+      return state.virtualNow ? state.virtualNow.toISOString().slice(0, 10) : null
+    },
   },
   actions: {
     async init() {
       if (this.ready) return
-      const w = await apiReplayWindow()
-      this.windowStart = w.startAt
-      this.windowEnd = w.endAt
-      this.description = w.description || ''
-      this.virtualNow = new Date(w.startAt)
+      this.applyYear(this.year)
       this.ready = true
+    },
+    /** 内部: 依据当前 year 设定 [1/1, 12/31] 窗口并把虚拟时间归位到年初 */
+    applyYear(year) {
+      this.year = year
+      this.windowStart = `${year}-01-01T00:00:00Z`
+      this.windowEnd = `${year}-12-31T00:00:00Z`
+      this.description = `${year} 年 四川逐日气象地质灾害回放`
+      this.virtualNow = new Date(this.windowStart)
+    },
+    /** 切换回放年份: 暂停并回到该年年初 */
+    setYear(year) {
+      if (year === this.year) return
+      this.pause()
+      this.applyYear(year)
     },
     start() {
       if (!this.ready || this.playing) return
@@ -97,9 +122,11 @@ export const useReplayStore = defineStore('replay', {
     jumpTo(isoOrDate) {
       this.virtualNow = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate)
     },
-    /** 跳到主震时刻 (2022-09-05 04:52 UTC = 北京 12:52) */
-    jumpToQuake() {
-      this.jumpTo('2022-09-05T04:52:00Z')
+    /** 跳到汛期暴雨窗口 (2022-09-06); 若不在 2022 年先切到 2022 */
+    jumpToPeak() {
+      if (this.year !== PEAK_YEAR) this.applyYear(PEAK_YEAR)
+      this.pause()
+      this.jumpTo(PEAK_DAY)
     },
     reset() {
       this.pause()

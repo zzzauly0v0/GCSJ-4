@@ -294,7 +294,6 @@ const sensorReadings = ref([
   { key: 'rain',  label: '降雨量',  value: '12.4', unit: 'mm',   color: 'var(--signal-crystal)' },
   { key: 'wind',  label: '风速',    value: '8.2',  unit: 'm/s',  color: 'var(--signal-crystal)' },
   { key: 'disp',  label: '位移',    value: '0.3',  unit: 'mm',   color: 'var(--signal-hazard)' },
-  { key: 'seism', label: '地震烈度', value: '0.08', unit: 'gal', color: 'var(--text-secondary)' },
   { key: 'soil',  label: '土壤湿度', value: '78',   unit: '%',   color: 'var(--signal-lava)' },
   { key: 'temp',  label: '温度',    value: '24.5', unit: '°C',  color: 'var(--text-secondary)' },
 ])
@@ -305,9 +304,8 @@ function refreshSensors() {
   sensorReadings.value[0].value = (8 + Math.random() * 20).toFixed(1)
   sensorReadings.value[1].value = (4 + Math.random() * 12).toFixed(1)
   sensorReadings.value[2].value = (Math.random() * 1.5).toFixed(2)
-  sensorReadings.value[3].value = (Math.random() * 0.2).toFixed(3)
-  sensorReadings.value[4].value = Math.round(60 + Math.random() * 30).toString()
-  sensorReadings.value[5].value = (20 + Math.random() * 10).toFixed(1)
+  sensorReadings.value[3].value = Math.round(60 + Math.random() * 30).toString()
+  sensorReadings.value[4].value = (20 + Math.random() * 10).toFixed(1)
 }
 
 // ---- Pie chart option — Disaster type distribution ----

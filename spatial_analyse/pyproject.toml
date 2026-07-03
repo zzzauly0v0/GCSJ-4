@@ -11,4 +11,14 @@ dependencies = [
     "psycopg2-binary>=2.9.9",
     "requests>=2.32.0",
     "shapely>=2.0.0",
+    "openai>=2.44.0",
+    "dotenv>=0.9.9",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "openai-agents>=0.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
 ]

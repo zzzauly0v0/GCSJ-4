@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
+import { compose } from 'ol/transform'
 
 const routes = [
   {
@@ -20,6 +21,12 @@ const routes = [
         name: 'Dashboard',
         component: () => import('@/views/dashboard/DashboardView.vue'),
         meta: { title: '监测大屏', icon: 'DataLine', permission: 'dashboard:view' }
+      },
+      {
+        path: 'agent',
+        name: 'Agent',
+        component: () => import('@/views/agent/AgentView.vue'),
+        meta: { title: 'AI灾害助手', icon: 'ChatDotRound', permission: 'dashboard:view' }
       },
       {
         path: 'disasters',

@@ -26,6 +26,8 @@ services:
       # 仅在数据卷为空 (首次启动) 时执行, 自动建表 + 灌种子数据
       - ../data/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
       - ../data/02_sichuan_schema.sql:/docker-entrypoint-initdb.d/02_sichuan_schema.sql:ro
+      - ../data/03_gis_weather_schema.sql:/docker-entrypoint-initdb.d/03_gis_weather_schema.sql:ro
+      - ../data/04_disaster_eval_schema.sql:/docker-entrypoint-initdb.d/04_disaster_eval_schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gcsj -d gcsj"]
       interval: 5s

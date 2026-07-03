@@ -19,7 +19,7 @@ export function useAlertSocket(onAlert) {
           title: `${meta.label}预警 - ${alert.title}`,
           message: alert.content || '',
           type: meta.tag === 'danger' ? 'error' : meta.tag,
-          duration: 6000
+          duration: 4000
         })
         if (typeof onAlert === 'function') onAlert(alert)
       })

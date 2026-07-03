@@ -15,14 +15,19 @@ import com.gcsj.disaster.utils.GeometryUtil;
 import com.gcsj.disaster.utils.SecurityContextUtil;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import com.gcsj.disaster.common.AlertLevel;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Date;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -34,8 +39,17 @@ public class AlertServiceImpl implements IAlertService {
     private final DisasterEventRepository disasterEventRepository;
     private final AlertConverter alertConverter;
     private final ApplicationEventPublisher publisher;
+    private final JdbcTemplate jdbc;
 
     private static final DateTimeFormatter CODE_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final DateTimeFormatter EVAL_CODE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+    /** 风险研判 comp 等级列 -> 分项灾种列, 用于取主导灾种名 */
+    private static final Map<String, String> EVAL_TYPE_NAME = Map.of(
+            "landslide_level", "滑坡",
+            "mudslide_level", "泥石流",
+            "freezethaw_level", "冻融滑坡",
+            "collapse_level", "坡面崩塌");
 
     @Override
     @Transactional
@@ -149,6 +163,116 @@ public class AlertServiceImpl implements IAlertService {
         alertRepository.save(a);
         publisher.publishEvent(new AlertTriggeredEvent(this, a, ch));
         return alertConverter.toVO(a);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> generateFromEval(Integer year, int minLevel) {
+        // 1. 扫描风险日 (comp_level>=minLevel), JOIN 站点取名称/经纬度
+        StringBuilder sql = new StringBuilder("""
+            SELECT e.station_code, s.name AS station_name, e.obs_date,
+                   ST_X(s.location) AS lon, ST_Y(s.location) AS lat,
+                   e.comp_level, e.r_eff,
+                   e.landslide_level, e.mudslide_level, e.freezethaw_level, e.collapse_level
+            FROM   biz.biz_disaster_eval e
+            LEFT   JOIN gis.gis_weather_station s ON s.code = e.station_code
+            WHERE  e.comp_level >= ?
+        """);
+        List<Object> args = new ArrayList<>();
+        args.add(minLevel);
+        if (year != null) {
+            sql.append(" AND EXTRACT(YEAR FROM e.obs_date) = ? ");
+            args.add(year);
+        }
+        sql.append(" ORDER BY e.obs_date, e.station_code");
+        List<Map<String, Object>> risks = jdbc.queryForList(sql.toString(), args.toArray());
+
+        int scanned = risks.size();
+        if (scanned == 0) {
+            return summary(0, 0, 0);
+        }
+
+        // 2. 为每条风险日构造确定性 code, 一次性查出已存在的 code 用于去重
+        Map<String, Map<String, Object>> byCode = new LinkedHashMap<>();
+        for (Map<String, Object> r : risks) {
+            String stationCode = (String) r.get("station_code");
+            LocalDate d = ((Date) r.get("obs_date")).toLocalDate();
+            String code = "E" + stationCode + d.format(EVAL_CODE_FMT);
+            byCode.putIfAbsent(code, r);
+        }
+        // 分批 IN 查询已存在 code (避免占位符过多超出驱动上限)
+        List<String> codeList = new ArrayList<>(byCode.keySet());
+        Set<String> existing = new HashSet<>();
+        final int CHUNK = 1000;
+        for (int i = 0; i < codeList.size(); i += CHUNK) {
+            List<String> sub = codeList.subList(i, Math.min(i + CHUNK, codeList.size()));
+            String inClause = String.join(",", Collections.nCopies(sub.size(), "?"));
+            existing.addAll(jdbc.queryForList(
+                    "SELECT code FROM biz.biz_alert WHERE code IN (" + inClause + ")",
+                    String.class, sub.toArray()));
+        }
+
+        // 3. 只落库缺失的
+        int created = 0;
+        for (Map.Entry<String, Map<String, Object>> en : byCode.entrySet()) {
+            String code = en.getKey();
+            if (existing.contains(code)) continue;
+            Map<String, Object> r = en.getValue();
+
+            String stationCode = (String) r.get("station_code");
+            String stationName = (String) r.get("station_name");
+            LocalDate d = ((Date) r.get("obs_date")).toLocalDate();
+            short level = ((Number) r.get("comp_level")).shortValue();
+            String levelLabel = AlertLevel.of(level).getLabel();
+            String dominant = dominantType(r);
+            String where = stationName != null && !stationName.isBlank() ? stationName : stationCode;
+
+            Alert a = new Alert();
+            a.setCode(code);
+            a.setTitle(where + " " + d + " " + levelLabel + dominant + "风险");
+            a.setContent(String.format("%s (%s) 于 %s 综合风险达%s级, 主导灾种: %s, R_eff=%s mm。",
+                    where, stationCode, d, levelLabel, dominant, fmtNum(r.get("r_eff"))));
+            a.setLevel(level);
+            a.setSource("eval");
+            Object lon = r.get("lon"), lat = r.get("lat");
+            if (lon != null && lat != null) {
+                a.setLocation(GeometryUtil.point(((Number) lon).doubleValue(), ((Number) lat).doubleValue()));
+            }
+            a.setChannels("in_site");
+            a.setStatus((short) 1);
+            // 触发时间取风险日当天 (UTC 零点), 与回放时间轴一致
+            a.setTriggeredAt(d.atStartOfDay().atOffset(ZoneOffset.UTC));
+            alertRepository.save(a);
+            // 批量历史生成不发 AlertTriggeredEvent, 避免实时通知刷屏
+            created++;
+        }
+
+        return summary(scanned, created, scanned - created);
+    }
+
+    /** 取分项等级最高的灾种作为主导灾种名 */
+    private static String dominantType(Map<String, Object> r) {
+        String best = null;
+        int bestLv = 0;
+        for (String col : EVAL_TYPE_NAME.keySet()) {
+            Object v = r.get(col);
+            int lv = v == null ? 0 : ((Number) v).intValue();
+            if (lv > bestLv) { bestLv = lv; best = col; }
+        }
+        return best == null ? "综合" : EVAL_TYPE_NAME.get(best);
+    }
+
+    private static String fmtNum(Object o) {
+        if (o == null) return "0";
+        return String.valueOf(Math.round(((Number) o).doubleValue()));
+    }
+
+    private static Map<String, Object> summary(int scanned, int created, int skipped) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("scanned", scanned);
+        out.put("created", created);
+        out.put("skipped", skipped);
+        return out;
     }
 
     private String genCode() {

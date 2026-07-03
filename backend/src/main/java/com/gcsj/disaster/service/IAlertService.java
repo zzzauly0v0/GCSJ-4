@@ -19,4 +19,11 @@ public interface IAlertService {
 
     /** 由灾害事件挂起预警: 从一条已有事件直接生成预警 (source=event) */
     AlertVO createFromEvent(Long eventId, Short level, String title, String content, List<String> channels);
+
+    /**
+     * 从风险研判结果批量生成预警 (source=eval)。
+     * 扫描 biz_disaster_eval 中 comp_level>=minLevel 的风险日, 按 (站点+日期) 去重后落库。
+     * 反复调用幂等。返回 { scanned, created, skipped }。
+     */
+    Map<String, Object> generateFromEval(Integer year, int minLevel);
 }
