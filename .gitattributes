@@ -1,0 +1,2 @@
+data/dem_sc.csv filter=lfs diff=lfs merge=lfs -text
+data/slope_sc.csv filter=lfs diff=lfs merge=lfs -text
