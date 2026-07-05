@@ -35,5 +35,27 @@ services:
       retries: 20
       start_period: 10s
 
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.24.2
+    container_name: gcsj-geoserver
+    restart: unless-stopped
+    environment:
+      GEOSERVER_ADMIN_USER: admin
+      GEOSERVER_ADMIN_PASSWORD: gcsj123
+      INSTALL_EXTENSIONS: "true"
+      STABLE_EXTENSIONS: "ysld,wps"
+    ports:
+      - "8600:8080"
+    volumes:
+      - gcsj-gsdata:/opt/geoserver_data
+      - ../gis/styles:/opt/geoserver_data/styles
+    networks: [gcsj-net]
+
+
+networks:
+  gcsj-net:
+    driver: bridge
+
 volumes:
   gcsj-pgdata:
+  gcsj-gsdata:
