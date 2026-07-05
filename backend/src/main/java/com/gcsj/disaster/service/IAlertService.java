@@ -26,4 +26,7 @@ public interface IAlertService {
      * 反复调用幂等。返回 { scanned, created, skipped }。
      */
     Map<String, Object> generateFromEval(Integer year, int minLevel);
+
+    /** 预警统计摘要：total / level1~4 / done（已确认+已关闭） */
+    Map<String, Object> stats();
 }

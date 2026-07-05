@@ -36,10 +36,11 @@ public class DisasterEvalController {
 
     /** 灾种 -> biz_disaster_eval 等级列 (供 /events 按灾种过滤) */
     private static final Map<String, String> TYPE_COL = Map.of(
-            "landslide", "landslide_level",
-            "mudslide", "mudslide_level",
-            "freezethaw", "freezethaw_level",
-            "collapse", "collapse_level",
+            "rainstorm", "rainstorm_level",
+            "heatwave", "heatwave_level",
+            "coldwave", "coldwave_level",
+            "drought", "drought_level",
+            "fireRisk", "fire_risk_level",
             "comp", "comp_level");
 
     /** 批算: 读全部(或限定)日观测, 逐站判别, upsert 回填 */
@@ -77,15 +78,16 @@ public class DisasterEvalController {
 
         String upsert = """
             INSERT INTO biz.biz_disaster_eval
-                (station_code, obs_date, r_eff, dtr, landslide_level, mudslide_level,
-                 freezethaw_level, collapse_level, comp_level, comp_index)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (station_code, obs_date, rainstorm_level, heatwave_level,
+                 coldwave_level, drought_level, fire_risk_level,
+                 comp_level, comp_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (station_code, obs_date) DO UPDATE SET
-                r_eff = EXCLUDED.r_eff, dtr = EXCLUDED.dtr,
-                landslide_level = EXCLUDED.landslide_level,
-                mudslide_level = EXCLUDED.mudslide_level,
-                freezethaw_level = EXCLUDED.freezethaw_level,
-                collapse_level = EXCLUDED.collapse_level,
+                rainstorm_level = EXCLUDED.rainstorm_level,
+                heatwave_level = EXCLUDED.heatwave_level,
+                coldwave_level = EXCLUDED.coldwave_level,
+                drought_level = EXCLUDED.drought_level,
+                fire_risk_level = EXCLUDED.fire_risk_level,
                 comp_level = EXCLUDED.comp_level,
                 comp_index = EXCLUDED.comp_index
         """;
@@ -96,8 +98,9 @@ public class DisasterEvalController {
             List<DailyEval> evals = engine.evaluateStation(e.getValue());
             List<Object[]> batch = new ArrayList<>(evals.size());
             for (DailyEval ev : evals) {
-                batch.add(new Object[]{code, Date.valueOf(ev.date()), ev.rEff(), ev.dtr(),
-                        ev.landslide(), ev.mudslide(), ev.freezethaw(), ev.collapse(),
+                batch.add(new Object[]{code, Date.valueOf(ev.date()),
+                        ev.rainstorm(), ev.heatwave(), ev.coldwave(),
+                        ev.drought(), ev.fireRisk(),
                         ev.compLevel(), ev.compIndex()});
             }
             for (int c : jdbc.batchUpdate(upsert, batch)) written += Math.abs(c);
@@ -121,9 +124,10 @@ public class DisasterEvalController {
         List<Map<String, Object>> events = jdbc.queryForList("""
             SELECT e.station_code, s.name AS station_name, e.obs_date,
                    ST_X(s.location) AS lon, ST_Y(s.location) AS lat,
-                   s.region_code, e.r_eff, e.dtr,
-                   e.landslide_level, e.mudslide_level, e.freezethaw_level,
-                   e.collapse_level, e.comp_level, e.comp_index
+                   s.region_code,
+                   e.rainstorm_level, e.heatwave_level, e.coldwave_level,
+                   e.drought_level, e.fire_risk_level,
+                   e.comp_level, e.comp_index
             FROM   biz.biz_disaster_eval e
             LEFT   JOIN gis.gis_weather_station s ON s.code = e.station_code
             WHERE  e.obs_date = ?::date
@@ -151,8 +155,8 @@ public class DisasterEvalController {
                                                      @RequestParam String to) {
         return Result.ok(jdbc.queryForList("""
             SELECT w.obs_date, w.rainfall, w.temp_avg, w.temp_max, w.temp_min, w.rh_avg, w.wind_max,
-                   e.r_eff, e.comp_level, e.landslide_level, e.mudslide_level,
-                   e.freezethaw_level, e.collapse_level
+                   e.rainstorm_level, e.heatwave_level, e.coldwave_level,
+                   e.drought_level, e.fire_risk_level, e.comp_level, e.comp_index
             FROM   gis.gis_weather_daily w
             LEFT   JOIN biz.biz_disaster_eval e
                    ON e.station_code = w.station_code AND e.obs_date = w.obs_date
@@ -202,8 +206,9 @@ public class DisasterEvalController {
         pageArgs.add((page - 1) * size);
         List<Map<String, Object>> list = jdbc.queryForList("""
             SELECT e.station_code, s.name AS station_name, e.obs_date,
-                   e.r_eff, e.landslide_level, e.mudslide_level,
-                   e.freezethaw_level, e.collapse_level, e.comp_level, e.comp_index
+                   e.rainstorm_level, e.heatwave_level, e.coldwave_level,
+                   e.drought_level, e.fire_risk_level,
+                   e.comp_level, e.comp_index
             FROM   biz.biz_disaster_eval e
             LEFT   JOIN gis.gis_weather_station s ON s.code = e.station_code
         """ + where + " ORDER BY e." + col + " DESC, e.obs_date DESC LIMIT ? OFFSET ?",
@@ -234,8 +239,9 @@ public class DisasterEvalController {
         // 灾种风险日分布 (level>=1 计为一次) -> 饼图
         Map<String, Object> byType = new LinkedHashMap<>();
         for (Map.Entry<String, String> e : Map.of(
-                "landslide", "landslide_level", "mudslide", "mudslide_level",
-                "freezethaw", "freezethaw_level", "collapse", "collapse_level").entrySet()) {
+                "rainstorm", "rainstorm_level", "heatwave", "heatwave_level",
+                "coldwave", "coldwave_level", "drought", "drought_level",
+                "fireRisk", "fire_risk_level").entrySet()) {
             Integer c = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM biz.biz_disaster_eval WHERE " + e.getValue() + " >= 1" + wYear,
                     Integer.class);
@@ -256,12 +262,12 @@ public class DisasterEvalController {
         // Top 风险日 (跨年, 综合等级最高若干条) -> 大屏列表
         out.put("topEvents", jdbc.queryForList("""
             SELECT e.station_code, s.name AS station_name, e.obs_date,
-                   e.r_eff, e.comp_level
+                   e.comp_level
             FROM   biz.biz_disaster_eval e
             LEFT   JOIN gis.gis_weather_station s ON s.code = e.station_code
             WHERE  e.comp_level >= 1
         """ + (year != null ? " AND EXTRACT(YEAR FROM e.obs_date) = " + year + " " : "") +
-            " ORDER BY e.comp_level DESC, e.r_eff DESC NULLS LAST, e.obs_date DESC LIMIT 8"));
+            " ORDER BY e.comp_level DESC, e.obs_date DESC LIMIT 8"));
 
         return Result.ok(out);
     }

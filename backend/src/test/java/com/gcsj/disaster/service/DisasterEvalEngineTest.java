@@ -3,6 +3,7 @@ package com.gcsj.disaster.service;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -11,90 +12,122 @@ class DisasterEvalEngineTest {
 
     private final DisasterEvalEngine engine = new DisasterEvalEngine();
 
-    /** 单日构造: 只给关心的因子, 其余 null */
-    private DisasterEvalEngine.DailyInput day(String d, Double rain, Double tmax, Double tmin, Double rh, Double wind) {
-        return new DisasterEvalEngine.DailyInput(LocalDate.parse(d), rain, tmax, tmin, rh, wind);
+    private DisasterEvalEngine.DailyInput day(String d, Double rain, Double tmax,
+                                               Double tmin, Double rh, Double wind) {
+        return new DisasterEvalEngine.DailyInput(
+                LocalDate.parse(d), rain, tmax, tmin, rh, wind);
     }
 
     private DisasterEvalEngine.DailyEval evalSingle(DisasterEvalEngine.DailyInput in) {
         return engine.evaluateStation(List.of(in)).get(0);
     }
 
-    // ---- §4.1 降雨滑坡: 当日降雨分级 (RH 中性, 无前期降雨) ----
+    // ---- 暴雨: R >= 25/50/100/250 分四档 ----
     @Test
-    void landslide_rainfall_thresholds() {
-        // RH=70 (中性, 不升不降), wind/temp 不影响滑坡
-        assertEquals(0, evalSingle(day("2021-06-01", 14.9, 20.0, 10.0, 70.0, 0.0)).landslide());
-        assertEquals(1, evalSingle(day("2021-06-01", 15.0, 20.0, 10.0, 70.0, 0.0)).landslide());
-        assertEquals(2, evalSingle(day("2021-06-01", 30.0, 20.0, 10.0, 70.0, 0.0)).landslide());
-        assertEquals(3, evalSingle(day("2021-06-01", 50.0, 20.0, 10.0, 70.0, 0.0)).landslide());
-        assertEquals(4, evalSingle(day("2021-06-01", 70.0, 20.0, 10.0, 70.0, 0.0)).landslide());
+    void rainstormThresholds() {
+        assertEquals(0, evalSingle(day("2021-06-01", 14.9, 20.0, 10.0, 70.0, 0.0)).rainstorm());
+        assertEquals(1, evalSingle(day("2021-06-01", 25.0, 20.0, 10.0, 70.0, 0.0)).rainstorm());
+        assertEquals(2, evalSingle(day("2021-06-01", 50.0, 20.0, 10.0, 70.0, 0.0)).rainstorm());
+        assertEquals(3, evalSingle(day("2021-06-01", 100.0, 20.0, 10.0, 70.0, 0.0)).rainstorm());
+        assertEquals(4, evalSingle(day("2021-06-01", 250.0, 20.0, 10.0, 70.0, 0.0)).rainstorm());
     }
 
-    // ---- §4.1.2(3) RH 升降级 ----
+    // ---- 高温: Tmax >= 33/35/37/40 分四档 ----
     @Test
-    void landslide_rh_adjust() {
-        // 基础黄(2): R=30, RH>=85 升一级 -> 橙(3)
-        assertEquals(3, evalSingle(day("2021-06-01", 30.0, 20.0, 10.0, 85.0, 0.0)).landslide());
-        // 基础黄(2): RH<60 降一级 -> 蓝(1)
-        assertEquals(1, evalSingle(day("2021-06-01", 30.0, 20.0, 10.0, 59.0, 0.0)).landslide());
+    void heatwaveThresholds() {
+        assertEquals(0, evalSingle(day("2021-07-01", 0.0, 32.9, 10.0, 70.0, 0.0)).heatwave());
+        assertEquals(1, evalSingle(day("2021-07-01", 0.0, 33.0, 10.0, 70.0, 0.0)).heatwave());
+        assertEquals(2, evalSingle(day("2021-07-01", 0.0, 35.0, 10.0, 70.0, 0.0)).heatwave());
+        assertEquals(3, evalSingle(day("2021-07-01", 0.0, 37.0, 10.0, 70.0, 0.0)).heatwave());
+        assertEquals(4, evalSingle(day("2021-07-01", 0.0, 40.0, 10.0, 70.0, 0.0)).heatwave());
     }
 
-    // ---- §4.2 泥石流: 风速增强 ----
+    // ---- 寒潮: 24h Tmin 降幅 >= 6/8/10/12 分四档 ----
     @Test
-    void mudslide_wind_boost() {
-        // R=20 -> 蓝(1); V>=10 +1 -> 黄(2)
-        assertEquals(2, evalSingle(day("2021-06-01", 20.0, 20.0, 10.0, 70.0, 10.0)).mudslide());
-        // R=20 -> 蓝(1); V>=15 +2 -> 橙(3)
-        assertEquals(3, evalSingle(day("2021-06-01", 20.0, 20.0, 10.0, 70.0, 15.0)).mudslide());
+    void coldwaveThresholds() {
+        // 24h降温 6°C
+        var e = evalTwo(
+                day("2021-01-01", 0.0, 10.0, 5.0, 70.0, 0.0),
+                day("2021-01-02", 0.0, 10.0, -1.0, 70.0, 0.0));
+        assertEquals(1, e.coldwave());
+        // 降温 8°C
+        e = evalTwo(
+                day("2021-01-01", 0.0, 10.0, 7.0, 70.0, 0.0),
+                day("2021-01-02", 0.0, 10.0, -1.0, 70.0, 0.0));
+        assertEquals(2, e.coldwave());
+        // 降温 10°C
+        e = evalTwo(
+                day("2021-01-01", 0.0, 10.0, 9.0, 70.0, 0.0),
+                day("2021-01-02", 0.0, 10.0, -1.0, 70.0, 0.0));
+        assertEquals(3, e.coldwave());
+        // 降温 12°C
+        e = evalTwo(
+                day("2021-01-01", 0.0, 10.0, 11.0, 70.0, 0.0),
+                day("2021-01-02", 0.0, 10.0, -1.0, 70.0, 0.0));
+        assertEquals(4, e.coldwave());
     }
 
-    // ---- §4.3 冻融: 仅在 Tmin<0 且 Tmax>0 才判定 ----
-    @Test
-    void freezethaw_requires_cycle() {
-        // 无冻融 (Tmin>=0) -> 0
-        assertEquals(0, evalSingle(day("2021-01-01", 30.0, 5.0, 0.0, 70.0, 0.0)).freezethaw());
-        // 发生冻融 Tmin=-5 Tmax=12 DTR=17 -> 黄(2)
-        assertEquals(2, evalSingle(day("2021-01-01", 0.0, 12.0, -5.0, 70.0, 0.0)).freezethaw());
-        // 同上叠加 R>=10 升一级 -> 橙(3)
-        assertEquals(3, evalSingle(day("2021-01-01", 10.0, 12.0, -5.0, 70.0, 0.0)).freezethaw());
+    private DisasterEvalEngine.DailyEval evalTwo(
+            DisasterEvalEngine.DailyInput d1,
+            DisasterEvalEngine.DailyInput d2) {
+        return engine.evaluateStation(List.of(d1, d2)).get(1);
     }
 
-    // ---- §4.4 崩塌: RH 分级 + 降雨 +1 ----
+    // ---- 干旱: 月累计降水 + 无雨日占比，无雨日=rainfall<0.1 ----
     @Test
-    void collapse_rh_and_rain() {
-        assertEquals(1, evalSingle(day("2021-06-01", 0.0, 20.0, 10.0, 80.0, 0.0)).collapse());
-        assertEquals(2, evalSingle(day("2021-06-01", 0.0, 20.0, 10.0, 88.0, 0.0)).collapse());
-        // RH=88 -> 黄(2); R>=25 +1 -> 橙(3)
-        assertEquals(3, evalSingle(day("2021-06-01", 25.0, 20.0, 10.0, 88.0, 0.0)).collapse());
+    void droughtDrySeason() {
+        // 干季(1月)：整月无雨(rainfall=0) → 无雨日100%, rain=0
+        // rain<5 & noRainRatio>0.90 → 红(4)
+        List<DisasterEvalEngine.DailyInput> jan = new ArrayList<>();
+        for (int d = 1; d <= 31; d++) {
+            jan.add(day(String.format("2021-01-%02d", d), 0.0, 10.0, 0.0, 50.0, 0.0));
+        }
+        var results = engine.evaluateStation(jan);
+        for (var r : results) {
+            assertEquals(4, r.drought());
+        }
     }
 
-    // ---- 综合等级取四类最高 (§6) ----
     @Test
-    void comp_level_is_max() {
-        // R=70 滑坡红(4), 其余更低 -> comp=4
-        var e = evalSingle(day("2021-06-01", 70.0, 20.0, 10.0, 70.0, 0.0));
-        assertEquals(4, e.compLevel());
+    void droughtWetSeason() {
+        // 湿季(7月)：降雨充足 → 无干旱
+        List<DisasterEvalEngine.DailyInput> jul = new ArrayList<>();
+        for (int d = 1; d <= 31; d++) {
+            jul.add(day(String.format("2021-07-%02d", d), 5.0, 30.0, 20.0, 70.0, 0.0));
+        }
+        var results = engine.evaluateStation(jul);
+        for (var r : results) {
+            assertEquals(0, r.drought());
+        }
     }
 
-    // ---- R_eff: 前一日降雨衰减累加 α=0.85 ----
+    // ---- 森林火险: Tmax+RH+Wind 三因子联合 ----
     @Test
-    void r_eff_decay_accumulation() {
-        // day1 R=100, day2 R=0 -> day2 的 r_eff = 0.85^1 * 100 = 85.0
-        var list = engine.evaluateStation(List.of(
-                day("2021-06-01", 100.0, 20.0, 10.0, 70.0, 0.0),
-                day("2021-06-02", 0.0, 20.0, 10.0, 70.0, 0.0)));
-        assertEquals(85.0, list.get(1).rEff(), 0.01);
+    void fireRiskRed() {
+        assertEquals(4, evalSingle(day("2021-07-01", 0.0, 30.0, 10.0, 15.0, 10.8)).fireRisk());
     }
 
-    // ---- 缺测: 关键因子 null -> 该灾种 0, 不抛异常 ----
     @Test
-    void missing_values_yield_zero() {
+    void fireRiskNone() {
+        assertEquals(0, evalSingle(day("2021-07-01", 0.0, 20.0, 10.0, 60.0, 1.0)).fireRisk());
+    }
+
+    // ---- 综合等级取五类最高 ----
+    @Test
+    void compLevelIsMax() {
+        var e = evalSingle(day("2021-07-01", 250.0, 40.0, 10.0, 70.0, 0.0));
+        assertTrue(e.compLevel() >= 4);
+    }
+
+    // ---- 缺测因子 → 该灾种返回 0 ----
+    @Test
+    void missingValuesYieldZero() {
         var e = evalSingle(day("2021-06-01", null, null, null, null, null));
-        assertEquals(0, e.landslide());
-        assertEquals(0, e.mudslide());
-        assertEquals(0, e.freezethaw());
-        assertEquals(0, e.collapse());
+        assertEquals(0, e.rainstorm());
+        assertEquals(0, e.heatwave());
+        assertEquals(0, e.coldwave());
+        assertEquals(0, e.drought());
+        assertEquals(0, e.fireRisk());
         assertEquals(0, e.compLevel());
     }
 }

@@ -279,4 +279,27 @@ public class AlertServiceImpl implements IAlertService {
         return "A" + OffsetDateTime.now().format(CODE_FMT)
                 + String.format("%04d", new Random().nextInt(10000));
     }
+
+    @Override
+    public Map<String, Object> stats() {
+        String sql = """
+            SELECT COUNT(*) AS total,
+                   COALESCE(SUM(CASE WHEN level = 1 THEN 1 ELSE 0 END), 0) AS level1,
+                   COALESCE(SUM(CASE WHEN level = 2 THEN 1 ELSE 0 END), 0) AS level2,
+                   COALESCE(SUM(CASE WHEN level = 3 THEN 1 ELSE 0 END), 0) AS level3,
+                   COALESCE(SUM(CASE WHEN level = 4 THEN 1 ELSE 0 END), 0) AS level4,
+                   COALESCE(SUM(CASE WHEN status IN (3, 4) THEN 1 ELSE 0 END), 0) AS done
+            FROM biz.biz_alert
+            WHERE deleted = false
+        """;
+        Map<String, Object> row = jdbc.queryForMap(sql);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("total",  ((Number) row.get("total")).longValue());
+        result.put("level1", ((Number) row.get("level1")).longValue());
+        result.put("level2", ((Number) row.get("level2")).longValue());
+        result.put("level3", ((Number) row.get("level3")).longValue());
+        result.put("level4", ((Number) row.get("level4")).longValue());
+        result.put("done",   ((Number) row.get("done")).longValue());
+        return result;
+    }
 }
