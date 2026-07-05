@@ -38,7 +38,7 @@ services:
       - "8600:8080"
     volumes:
       - gcsj-gsdata:/opt/geoserver_data
-      - ../gis/styles:/opt/geoserver_data/styles:ro
+      - ../gis/styles:/opt/geoserver_data/styles
     networks: [gcsj-net]
 
   backend:

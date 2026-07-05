@@ -7,6 +7,7 @@ import VectorLayer from 'ol/layer/Vector'
 import VectorSource from 'ol/source/Vector'
 import OSM from 'ol/source/OSM'
 import XYZ from 'ol/source/XYZ'
+import TileWMS from 'ol/source/TileWMS'
 import GeoJSON from 'ol/format/GeoJSON'
 import { fromLonLat } from 'ol/proj'
 import { Style, Circle as CircleStyle, Stroke, Fill, RegularShape } from 'ol/style'
@@ -108,6 +109,22 @@ export function useMap(target, options = {}) {
     return tile
   }
 
+  function buildWMSLayer(meta) {
+    const url = resolveTileUrl(meta.sourceUrl)
+    const layerName = meta.layerName || meta.code
+    return new Tile({
+      source: new TileWMS({
+        url,
+        params: { LAYERS: layerName, TILED: true },
+        crossOrigin: 'anonymous',
+        serverType: 'geoserver'
+      }),
+      visible: !!meta.visible,
+      zIndex: meta.zindex ?? 5,
+      opacity: 0.95
+    })
+  }
+
   function buildVectorLayer(meta) {
     const styleFn = VECTOR_STYLE_REGISTRY[meta.code] || defaultVectorStyle
     return new VectorLayer({
@@ -164,6 +181,8 @@ export function useMap(target, options = {}) {
         let lyr = null
         if (meta.type === 'xyz' || meta.type === 'wmts') {
           lyr = buildTileLayer(meta)
+        } else if (meta.type === 'wms' || meta.type === 'raster') {
+          lyr = buildWMSLayer(meta)
         } else if (meta.type === 'vector') {
           lyr = buildVectorLayer(meta)
         } else {
