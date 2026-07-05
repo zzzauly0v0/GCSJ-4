@@ -1,15 +1,22 @@
 """
-灾害判别批算 (Python 版, 等价于后端 POST /api/disaster-eval/run)。
+灾害判别批算 (Python 版)。
 
 读 gis.gis_weather_daily -> 逐站跑判别引擎 -> upsert 回 biz.biz_disaster_eval (幂等)。
-判别逻辑逐行复刻 backend DisasterEvalEngine.java (依据 data/算法 .md), 口径与已有 2022 结果一致。
 
-背景: biz_disaster_eval 之前只批算过 2022, 导致历史页/大屏概览按 2020/2021/2023 筛选时为空。
-本脚本对缺失年份补算即可。
+判别类型（五类气象灾害，统一四色预警等级 1~4）：
+  暴雨      - GB/T 28592-2012 降水量等级
+  高温热浪  - GB/T 20481-2017 高温热浪等级
+  寒潮      - GB/T 21987-2017 寒潮等级
+  干旱      - GB/T 20481-2017 气象干旱等级（月累计简化方案）
+  森林火险  - LY/T 1172-95 + QX/T 77-2007 森林火险气象等级
+
+数据库表须包含字段：
+  rainstorm_level, heatwave_level, coldwave_level,
+  drought_level, fire_risk_level, comp_level, comp_index
 
 依赖: psycopg2-binary
 用法:
-  python run_disaster_eval.py                     # 全部年份 (幂等, 已算过的年份会被覆盖为相同结果)
+  python run_disaster_eval.py                     # 全部年份 (幂等)
   python run_disaster_eval.py --years 2020,2021,2023
   python run_disaster_eval.py --station 56571      # 只算单站
 """
@@ -22,12 +29,15 @@ import psycopg2.extras
 # ---------------- 配置 ----------------
 DB_DSN = "host=localhost port=5432 dbname=gcsj user=gcsj password=gcsj123"
 
-# ---------------- 引擎常量 (对齐 DisasterEvalEngine.java) ----------------
-ALPHA = 0.85
-WINDOW = 15
-# §5.2 AHP 权重
-W_R, W_REFF, W_RH, W_V, W_DTR = 0.35, 0.30, 0.15, 0.10, 0.10
-
+# ---------------- 灾害判别等级体系 ----------------
+# 统一四色预警：蓝色(1) < 黄色(2) < 橙色(3) < 红色(4)，0 = 无风险
+#
+# 依据标准：
+#   暴雨    - GB/T 28592-2012 《降水量等级》
+#   高温热浪 - GB/T 20481-2017 《高温热浪等级》
+#   寒潮    - GB/T 21987-2017 《寒潮等级》
+#   干旱    - GB/T 20481-2017 《气象干旱等级》（简化方案）
+#   森林火险 - LY/T 1172-95 + QX/T 77-2007 《森林火险气象等级》
 
 import math
 
@@ -38,167 +48,202 @@ def nz(v):
 
 
 def jround(v: float, scale: int) -> float:
-    """对齐 Java Math.round (half-up): floor(v*10^s + 0.5)/10^s。
-    Python 内建 round() 用银行家舍入 (half-to-even), 会在边界上与 Java 结果差 1 个末位。"""
+    """对齐 Java Math.round (half-up)"""
     f = 10 ** scale
     return math.floor(v * f + 0.5) / f
 
 
-def clamp(lv: int) -> int:
-    return max(0, min(4, lv))
-
-
-def level(v: float, a: float, b: float, c: float, e: float) -> int:
-    """通用四阈值分级: <a ->0, [a,b)->1, [b,c)->2, [c,e)->3, >=e ->4"""
-    if v >= e:
+# ---- §4.1 暴雨（GB/T 28592-2012）----
+def rainstorm_level(rainfall) -> int:
+    """
+    蓝色(1): 大雨    25 ~ 50 mm
+    黄色(2): 暴雨    50 ~ 100 mm
+    橙色(3): 大暴雨  100 ~ 250 mm
+    红色(4): 特大暴雨  ≥ 250 mm
+    """
+    if rainfall is None:
+        return 0
+    r = float(rainfall)
+    if r >= 250:
         return 4
-    if v >= c:
+    if r >= 100:
         return 3
-    if v >= b:
+    if r >= 50:
         return 2
-    if v >= a:
+    if r >= 25:
         return 1
     return 0
 
 
-def norm(v: float, full: float) -> float:
-    if v <= 0:
-        return 0.0
-    return min(1.0, v / full)
-
-
-def effective_rainfall(series, t: int) -> float:
-    """§2.2 前期有效降雨量: 回看至多 15 天衰减累加 (不含当日), 缺口日降雨按 0"""
-    total = 0.0
-    for i in range(1, WINDOW + 1):
-        idx = t - i
-        if idx < 0:
-            break
-        total += (ALPHA ** i) * nz(series[idx]["rainfall"])
-    return total
-
-
-def dtr_of(d):
-    if d["temp_max"] is None or d["temp_min"] is None:
-        return None
-    return float(d["temp_max"]) - float(d["temp_min"])
-
-
-# ---- §4.1 降雨滑坡 ----
-def landslide(d, r_eff: float) -> int:
-    if d["rainfall"] is None and d["rh_avg"] is None:
+# ---- §4.2 高温热浪（GB/T 20481-2017）----
+def heatwave_level(temp_max) -> int:
+    """
+    蓝色(1): 正常偏高 33 ~ 35 °C
+    黄色(2): 高温     35 ~ 37 °C
+    橙色(3): 酷热     37 ~ 40 °C
+    红色(4): 极端高温   ≥ 40 °C
+    """
+    if temp_max is None:
         return 0
-    by_r = level(nz(d["rainfall"]), 15, 30, 50, 70)
-    by_reff = level(r_eff, 60, 100, 150, 200)
-    lv = max(by_r, by_reff)
-    if lv == 0:
+    t = float(temp_max)
+    if t >= 40:
+        return 4
+    if t >= 37:
+        return 3
+    if t >= 35:
+        return 2
+    if t >= 33:
+        return 1
+    return 0
+
+
+# ---- §4.3 寒潮（GB/T 21987-2017）----
+def coldwave_level(series, t: int) -> int:
+    """
+    基于相邻日最低气温 24h 降幅：
+    蓝色(1): 强降温  6 ~ 8 °C
+    黄色(2): 寒潮    8 ~ 10 °C
+    橙色(3): 强寒潮  10 ~ 12 °C
+    红色(4): 特强寒潮 ≥ 12 °C
+    """
+    if t == 0:
         return 0
-    rh = d["rh_avg"]
-    if rh is not None:
-        if rh >= 85:
-            lv += 1
-        elif rh < 60:
-            lv -= 1
-    return lv
-
-
-# ---- §4.2 降雨泥石流 ----
-def mudslide(d, r_eff: float) -> int:
-    by_r = level(nz(d["rainfall"]), 20, 40, 60, 90)
-    by_reff = level(r_eff, 70, 120, 180, 240)
-    lv = max(by_r, by_reff)
-    if lv == 0:
+    cur_tmin = series[t].get("temp_min")
+    prev_tmin = series[t - 1].get("temp_min")
+    if cur_tmin is None or prev_tmin is None:
         return 0
-    v = d["wind_max"]
-    if v is not None:
-        if v >= 15:
-            lv += 2
-        elif v >= 10:
-            lv += 1
-    return lv
+    drop = float(prev_tmin) - float(cur_tmin)
+    if drop >= 12:
+        return 4
+    if drop >= 10:
+        return 3
+    if drop >= 8:
+        return 2
+    if drop >= 6:
+        return 1
+    return 0
 
 
-# ---- §4.3 冻融滑坡: 仅在发生冻融 (Tmin<0 且 Tmax>0) 时判定 ----
-def freezethaw(d, r_eff: float) -> int:
-    if d["temp_max"] is None or d["temp_min"] is None:
+# ---- §4.4 干旱（GB/T 20481-2017，月累计简化方案）----
+# 由于仅有单年数据无法计算多年降水距平（Pa），采用干/湿季分档阈值。
+# 在 evaluate_station 中预先计算各站-月累计降水与无雨日占比，逐日填充同一月内所有天相同等级。
+
+# 干季月 (11,12,1,2,3,4) 与 湿季月 (5,6,7,8,9,10) 分档
+DRY_MONTHS = {11, 12, 1, 2, 3, 4}
+WET_MONTHS = {5, 6, 7, 8, 9, 10}
+
+# 干季阈值 (月累计降水 mm)
+DRY_DROUGHT_THRESHOLDS = [
+    (30, 1),   # 蓝色(1): 轻旱, 月降水 < 30mm
+    (20, 2),   # 黄色(2): 中旱, 月降水 < 20mm
+    (10, 3),   # 橙色(3): 重旱, 月降水 < 10mm
+    (5, 4),    # 红色(4): 特旱, 月降水 < 5mm 且无雨日 > 90%
+]
+# 湿季阈值
+WET_DROUGHT_THRESHOLDS = [
+    (80, 1),   # 蓝色(1): 轻旱
+    (60, 2),   # 黄色(2): 中旱
+    (40, 3),   # 橙色(3): 重旱
+    (20, 4),   # 红色(4): 特旱
+]
+
+
+def _drought_level(month: int, monthly_rain: float, dry_ratio: float) -> int:
+    """根据月份、月累计降水、无雨日占比返回干旱等级 0~4"""
+    thresholds = DRY_DROUGHT_THRESHOLDS if month in DRY_MONTHS else WET_DROUGHT_THRESHOLDS
+    for thresh, lv in reversed(thresholds):
+        if monthly_rain < thresh:
+            # 最高档 (红色) 额外要求无雨日 > 90%
+            if lv == 4 and dry_ratio <= 0.9:
+                return 3 if monthly_rain < thresholds[-2][0] else 0
+            return lv
+    return 0
+
+
+# ---- §4.5 森林火险（LY/T 1172-95 + QX/T 77-2007）----
+def fire_risk_level(temp_max, rh_avg, wind_max) -> int:
+    """
+    基于气温-湿度-风速组合（火险三角）：
+    蓝色(1): 较低火险  Tmax≥20, RH≤45%,  Wind≥3.3 m/s
+    黄色(2): 较高火险  Tmax≥25, RH≤35%,  Wind≥5.5 m/s
+    橙色(3): 高火险    Tmax≥28, RH≤25%,  Wind≥8.0 m/s
+    红色(4): 极高火险  Tmax≥30, RH≤15%,  Wind≥10.8 m/s
+    """
+    if temp_max is None or rh_avg is None or wind_max is None:
         return 0
-    tmax, tmin = float(d["temp_max"]), float(d["temp_min"])
-    if not (tmin < 0 and tmax > 0):
-        return 0
-    dtr = tmax - tmin
-    lv = level(dtr, 10, 15, 20, 25)
-    if lv == 0:
-        return 0
-    if nz(d["rainfall"]) >= 10 or r_eff >= 40:
-        lv += 1
-    return lv
+    t = float(temp_max)
+    rh = float(rh_avg)
+    w = float(wind_max)
+    if t >= 30 and rh <= 15 and w >= 10.8:
+        return 4
+    if t >= 28 and rh <= 25 and w >= 8.0:
+        return 3
+    if t >= 25 and rh <= 35 and w >= 5.5:
+        return 2
+    if t >= 20 and rh <= 45 and w >= 3.3:
+        return 1
+    return 0
 
 
-# ---- §4.4 坡面崩塌 ----
-def collapse(d) -> int:
-    rh = d["rh_avg"]
-    if rh is None:
-        return 0
-    if rh >= 97:
-        lv = 4
-    elif rh >= 93:
-        lv = 3
-    elif rh >= 88:
-        lv = 2
-    elif rh >= 80:
-        lv = 1
-    else:
-        lv = 0
-    if lv == 0:
-        return 0
-    if nz(d["rainfall"]) >= 25:
-        lv += 1
-    return lv
-
-
-# ---- §5 综合风险指数 H ----
-def comp_index(d, r_eff: float, dtr) -> float:
-    f_r = norm(nz(d["rainfall"]), 70)
-    f_reff = norm(r_eff, 200)
-    f_rh = 0.0 if d["rh_avg"] is None else norm(float(d["rh_avg"]), 100)
-    f_v = 0.0 if d["wind_max"] is None else norm(float(d["wind_max"]), 15)
-    f_dtr = 0.0 if dtr is None else norm(dtr, 25)
-    return W_R * f_r + W_REFF * f_reff + W_RH * f_rh + W_V * f_v + W_DTR * f_dtr
-
-
+# ---- 综合评估 ----
 def evaluate_station(series):
     """series: 按 obs_date 升序的日观测 dict 列表 -> 判别结果 tuple 列表"""
+    # 预计算：逐月累计降水 & 无雨日统计（干旱是月级别灾害，同月所有天等级一致）
+    monthly_rain = {}   # (year, month) -> total_rainfall
+    monthly_days = {}   # (year, month) -> total_days_in_data
+    monthly_dry = {}    # (year, month) -> days_with_rainfall < 0.1
+
+    for d in series:
+        dt = d["obs_date"]
+        ym = (dt.year, dt.month)
+        r = nz(d["rainfall"])
+        monthly_rain[ym] = monthly_rain.get(ym, 0.0) + r
+        monthly_days[ym] = monthly_days.get(ym, 0) + 1
+        if r < 0.1:
+            monthly_dry[ym] = monthly_dry.get(ym, 0) + 1
+
     out = []
     for t, cur in enumerate(series):
-        r_eff = effective_rainfall(series, t)
-        dtr = dtr_of(cur)
-        ls = clamp(landslide(cur, r_eff))
-        ms = clamp(mudslide(cur, r_eff))
-        ft = clamp(freezethaw(cur, r_eff))
-        cp = clamp(collapse(cur))
-        comp = max(ls, ms, ft, cp)
-        h = comp_index(cur, r_eff, dtr)
+        dt = cur["obs_date"]
+        ym = (dt.year, dt.month)
+
+        # 干旱等级：同月内所有天一致
+        mrain = monthly_rain.get(ym, 0.0)
+        mdays = max(1, monthly_days.get(ym, 1))
+        dry_ratio = monthly_dry.get(ym, 0) / mdays
+        dr = _drought_level(dt.month, mrain, dry_ratio)
+
+        rs = rainstorm_level(cur.get("rainfall"))
+        hw = heatwave_level(cur.get("temp_max"))
+        cw = coldwave_level(series, t)
+        fr = fire_risk_level(cur.get("temp_max"), cur.get("rh_avg"), cur.get("wind_max"))
+
+        # 综合等级：取五种灾害的最高等级
+        comp = max(rs, hw, cw, dr, fr)
+        # 综合指数：归一化到 0~1
+        hi = comp / 4.0
+
         out.append((
             cur["station_code"], cur["obs_date"],
-            jround(r_eff, 2), None if dtr is None else jround(dtr, 2),
-            ls, ms, ft, cp, comp, jround(h, 3),
+            rs, hw, cw, dr, fr, comp, jround(hi, 3),
         ))
     return out
 
 
 UPSERT = """
     INSERT INTO biz.biz_disaster_eval
-        (station_code, obs_date, r_eff, dtr, landslide_level, mudslide_level,
-         freezethaw_level, collapse_level, comp_level, comp_index)
+        (station_code, obs_date,
+         rainstorm_level, heatwave_level, coldwave_level,
+         drought_level, fire_risk_level, comp_level, comp_index)
     VALUES %s
     ON CONFLICT (station_code, obs_date) DO UPDATE SET
-        r_eff = EXCLUDED.r_eff, dtr = EXCLUDED.dtr,
-        landslide_level  = EXCLUDED.landslide_level,
-        mudslide_level   = EXCLUDED.mudslide_level,
-        freezethaw_level = EXCLUDED.freezethaw_level,
-        collapse_level   = EXCLUDED.collapse_level,
-        comp_level       = EXCLUDED.comp_level,
-        comp_index       = EXCLUDED.comp_index
+        rainstorm_level = EXCLUDED.rainstorm_level,
+        heatwave_level  = EXCLUDED.heatwave_level,
+        coldwave_level  = EXCLUDED.coldwave_level,
+        drought_level   = EXCLUDED.drought_level,
+        fire_risk_level = EXCLUDED.fire_risk_level,
+        comp_level      = EXCLUDED.comp_level,
+        comp_index      = EXCLUDED.comp_index
 """
 
 

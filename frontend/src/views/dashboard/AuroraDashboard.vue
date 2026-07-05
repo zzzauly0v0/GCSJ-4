@@ -32,7 +32,7 @@
     <section class="history-section">
       <AuCard
         title="2020–2023 历史气象灾害概览"
-        subtitle="逐日气象观测 · 四类灾害判别"
+        subtitle="逐日气象观测 · 五类灾害判别"
         gradient-border
         dot
         flat
@@ -90,7 +90,7 @@
               <span class="ht-bar" :style="{ background: LV_COLOR[ev.comp_level] }" />
               <span class="ht-station">{{ ev.station_name || ev.station_code }}</span>
               <span class="ht-date">{{ String(ev.obs_date).slice(0, 10) }}</span>
-              <span class="ht-reff">R_eff {{ Number(ev.r_eff ?? 0).toFixed(0) }}</span>
+              <span class="ht-reff">CI {{ Number(ev.comp_index ?? 0).toFixed(1) }}</span>
               <span class="ht-lv" :style="{ color: LV_COLOR[ev.comp_level] }">{{ LV_NAME[ev.comp_level] }}</span>
             </div>
           </div>
@@ -242,7 +242,7 @@
             <div class="alert-main">
               <div class="alert-title">{{ a.station_name || a.station_code }} · {{ topTypeName(a) }}</div>
               <div class="alert-meta">
-                <span class="alert-region">R_eff {{ Number(a.r_eff ?? 0).toFixed(0) }}</span>
+                <span class="alert-region">CI {{ Number(a.comp_index ?? 0).toFixed(1) }}</span>
                 <span class="alert-time">{{ String(a.obs_date).slice(0, 10) }}</span>
               </div>
             </div>
@@ -446,8 +446,8 @@ const trendStackMode = ref('stack')
 // ---------- History overview (2020–2023 真实判别结果) ----------
 const LV_COLOR = ['#94A3B8', '#2563EB', '#F59E0B', '#F97316', '#DC2626']
 const LV_NAME = ['无', '蓝色', '黄色', '橙色', '红色']
-const TYPE_NAME = { landslide: '降雨滑坡', mudslide: '降雨泥石流', freezethaw: '冻融滑坡', collapse: '坡面崩塌' }
-const TYPE_COLOR = { landslide: '#6366F1', mudslide: '#06B6D4', freezethaw: '#3B82F6', collapse: '#8B5CF6' }
+const TYPE_NAME = { rainstorm: '暴雨', heatwave: '高温热浪', coldwave: '寒潮', drought: '干旱', fire_risk: '森林火险' }
+const TYPE_COLOR = { rainstorm: '#3B82F6', heatwave: '#F97316', coldwave: '#06B6D4', drought: '#EAB308', fire_risk: '#DC2626' }
 
 // 概览年份默认跟随回放年份 (回放切到哪年, 概览就展示哪年)
 const histYear = ref(replayStore.year)
@@ -533,8 +533,8 @@ function renderHistCharts() {
 }
 
 // ---------- 当日风险事件 (由 /topic/disasters 每日推送驱动全部面板) ----------
-// events: [{ station_code, station_name, obs_date, lon, lat, r_eff, dtr,
-//            landslide_level, mudslide_level, freezethaw_level, collapse_level,
+// events: [{ station_code, station_name, obs_date, lon, lat,
+//            rainstorm_level, heatwave_level, coldwave_level, drought_level, fire_risk_level,
 //            comp_level, comp_index }]
 const dayEvents = ref([])
 // 逐日累积趋势历史: [{ date, 1, 2, 3, 4 }] — 随回放推进而增长
@@ -543,8 +543,9 @@ const dailyHistory = ref([])
 /** 事件中占主导的灾种名 (取等级最高的灾种列) */
 function topTypeName(e) {
   const cols = [
-    ['landslide_level', '滑坡'], ['mudslide_level', '泥石流'],
-    ['freezethaw_level', '冻融滑坡'], ['collapse_level', '崩塌'],
+    ['rainstorm_level', '暴雨'], ['heatwave_level', '高温热浪'],
+    ['coldwave_level', '寒潮'], ['drought_level', '干旱'],
+    ['fire_risk_level', '森林火险'],
   ]
   let best = null, bestLv = 0
   for (const [col, name] of cols) {
@@ -593,7 +594,7 @@ const kpis = computed(() => {
   const total = evs.length
   const red   = evs.filter(a => a.comp_level === 4).length
   const high  = evs.filter(a => a.comp_level >= 3).length
-  const maxReff = evs.reduce((m, a) => Math.max(m, Number(a.r_eff ?? 0)), 0)
+  const maxCI = evs.reduce((m, a) => Math.max(m, Number(a.comp_index ?? 0)), 0)
 
   // 环比昨日: 取累积历史的倒数第二天 (当前日为最后一天)
   const hist = dailyHistory.value
@@ -601,7 +602,7 @@ const kpis = computed(() => {
   const prevTotal = prev ? (prev[1] + prev[2] + prev[3] + prev[4]) : null
   const prevRed   = prev ? prev[4] : null
   const prevHigh  = prev ? (prev[3] + prev[4]) : null
-  const prevReff  = prev ? (prev.maxReff ?? null) : null
+  const prevCI    = prev ? (prev.maxCI ?? null) : null
 
   // spark 用累积历史的当日总数序列, 反映回放推进
   const spark = hist.slice(-14).map(d => (d[1] + d[2] + d[3] + d[4]))
@@ -609,7 +610,7 @@ const kpis = computed(() => {
     { key: 'total',  label: '当日风险站点', value: total,             unit: '站', trend: pctChange(total, prevTotal), trendInvert: true,  sparkData: spark.length ? spark : mkSpark(Math.max(total, 6)), tone: 'info' },
     { key: 'red',    label: '红色级别',     value: red,               unit: '站', trend: pctChange(red, prevRed),     trendInvert: true,  sparkData: mkSpark(Math.max(red, 2)),  tone: 'danger' },
     { key: 'high',   label: '橙红高风险',   value: high,              unit: '站', trend: pctChange(high, prevHigh),   trendInvert: true,  sparkData: mkSpark(Math.max(high, 3)), tone: 'warning' },
-    { key: 'reff',   label: '最大有效雨量', value: maxReff.toFixed(0), unit: 'mm', trend: pctChange(Math.round(maxReff), prevReff != null ? Math.round(prevReff) : null), trendInvert: true, sparkData: mkSpark(Math.max(maxReff / 10, 2)), tone: 'success' },
+    { key: 'ci',     label: '最大综合指数', value: maxCI.toFixed(1),  unit: '',   trend: pctChange(Math.round(maxCI * 10) / 10, prevCI != null ? Math.round(prevCI * 10) / 10 : null), trendInvert: true, sparkData: mkSpark(Math.max(maxCI, 2)), tone: 'success' },
   ]
 })
 
@@ -621,11 +622,11 @@ const sensorReadings = computed(() => {
   const max = (fn) => evs.reduce((m, e) => Math.max(m, Number(fn(e)) || 0), 0)
   const cnt = (col) => evs.filter(e => (e[col] || 0) >= 1).length
   return [
-    { key: 'reff', label: '平均有效雨量', value: avg(e => e.r_eff).toFixed(1),   unit: 'mm', color: '#2563EB' },
-    { key: 'maxr', label: '最大有效雨量', value: max(e => e.r_eff).toFixed(1),   unit: 'mm', color: '#06B6D4' },
-    { key: 'dtr',  label: '平均日较差',   value: avg(e => e.dtr).toFixed(1),     unit: '°C', color: '#F59E0B' },
-    { key: 'ls',   label: '滑坡风险站',   value: String(cnt('landslide_level')), unit: '站', color: '#8B5CF6' },
-    { key: 'ms',   label: '泥石流风险站', value: String(cnt('mudslide_level')),  unit: '站', color: '#F97316' },
+    { key: 'rs', label: '暴雨风险站',   value: String(cnt('rainstorm_level')), unit: '站', color: '#2563EB' },
+    { key: 'hw', label: '高温热浪站',   value: String(cnt('heatwave_level')),  unit: '站', color: '#F97316' },
+    { key: 'cw', label: '寒潮风险站',   value: String(cnt('coldwave_level')),  unit: '站', color: '#06B6D4' },
+    { key: 'dr', label: '干旱风险站',   value: String(cnt('drought_level')),   unit: '站', color: '#F59E0B' },
+    { key: 'fr', label: '森林火险站',   value: String(cnt('fire_risk_level')), unit: '站', color: '#EF4444' },
   ]
 })
 
@@ -700,10 +701,11 @@ function buildPieOption() {
   // 当日风险站点按灾种统计 (每站可能命中多灾种, 各计一次)
   const evs = dayEvents.value
   const defs = [
-    { col: 'landslide_level',  name: '滑坡',     color: '#6366F1' },
-    { col: 'mudslide_level',   name: '泥石流',   color: '#06B6D4' },
-    { col: 'freezethaw_level', name: '冻融滑坡', color: '#3B82F6' },
-    { col: 'collapse_level',   name: '崩塌',     color: '#8B5CF6' },
+    { col: 'rainstorm_level',  name: '暴雨',     color: '#2563EB' },
+    { col: 'heatwave_level',   name: '高温热浪', color: '#F97316' },
+    { col: 'coldwave_level',   name: '寒潮',     color: '#06B6D4' },
+    { col: 'drought_level',    name: '干旱',     color: '#F59E0B' },
+    { col: 'fire_risk_level',  name: '森林火险', color: '#EF4444' },
   ]
   const types = defs
     .map(d => ({ name: d.name, value: evs.filter(e => (e[d.col] || 0) >= 1).length, color: d.color }))
@@ -780,11 +782,11 @@ useDisasterSocket((payload) => {
 
   // 累积逐日趋势 (同一天重复推送则覆盖, 保留最近 60 天)
   if (payload?.date) {
-    const bucket = { date: payload.date, 1: 0, 2: 0, 3: 0, 4: 0, maxReff: 0 }
+    const bucket = { date: payload.date, 1: 0, 2: 0, 3: 0, 4: 0, maxCI: 0 }
     events.forEach(e => {
       const lv = e.comp_level || 0
       if (bucket[lv] != null) bucket[lv]++
-      bucket.maxReff = Math.max(bucket.maxReff, Number(e.r_eff ?? 0))
+      bucket.maxCI = Math.max(bucket.maxCI, Number(e.comp_index ?? 0))
     })
     const hist = dailyHistory.value
     const last = hist[hist.length - 1]

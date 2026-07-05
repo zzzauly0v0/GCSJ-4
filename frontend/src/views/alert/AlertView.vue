@@ -8,9 +8,6 @@
           <div class="stat-value num-mono">{{ s.value }}</div>
           <div class="stat-label">{{ s.label }}</div>
         </div>
-        <div class="stat-trend">
-          <el-icon><CaretTop /></el-icon>{{ s.trend }}%
-        </div>
       </div>
     </div>
 
@@ -126,9 +123,9 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  BellFilled, Clock, Location, Promotion, Refresh, CaretTop, MagicStick
+  BellFilled, Clock, Location, Promotion, Refresh, MagicStick
 } from '@element-plus/icons-vue'
-import { apiAlertConfirm, apiAlertClose, apiAlertPage, apiAlertGenerateFromEval } from '@/api/alert'
+import { apiAlertConfirm, apiAlertClose, apiAlertPage, apiAlertGenerateFromEval, apiAlertStats } from '@/api/alert'
 import { formatDateTime, levelMeta } from '@/utils/format'
 import AuTimelineMini from '@/components/aurora/AuTimelineMini.vue'
 
@@ -143,21 +140,23 @@ const genDlg = ref(false)
 const genLoading = ref(false)
 const genForm = reactive({ year: null, minLevel: 3 })
 
-const stats = ref({ total: 0, l1: 0, l2: 0, l3: 0, l4: 0 })
+const stats = ref({ total: 0, level1: 0, level2: 0, level3: 0, level4: 0, done: 0 })
 
 const tabs = computed(() => [
-  { value: null, label: '全部',     count: stats.value.total, color: null },
-  { value: 4,    label: '红色预警', count: stats.value.l4,    color: '#D93025' },
-  { value: 3,    label: '橙色预警', count: stats.value.l3,    color: '#E8710A' },
-  { value: 2,    label: '黄色预警', count: stats.value.l2,    color: '#F29900' },
-  { value: 1,    label: '蓝色预警', count: stats.value.l1,    color: '#5F6368' }
+  { value: null, label: '全部',     count: stats.value.total,  color: null },
+  { value: 4,    label: '红色预警', count: stats.value.level4, color: '#D93025' },
+  { value: 3,    label: '橙色预警', count: stats.value.level3, color: '#E8710A' },
+  { value: 2,    label: '黄色预警', count: stats.value.level2, color: '#F29900' },
+  { value: 1,    label: '蓝色预警', count: stats.value.level1, color: '#5F6368' }
 ])
 
 const statsData = computed(() => [
-  { key: 'total', label: '预警总数',   value: stats.value.total, color: '#3C4043', trend: 12, icon: 'BellFilled' },
-  { key: 'red',   label: '红色预警',   value: stats.value.l4,    color: '#D93025', trend: 5,  icon: 'Warning' },
-  { key: 'orange',label: '橙色预警',   value: stats.value.l3,    color: '#E8710A', trend: 8,  icon: 'Warning' },
-  { key: 'done',  label: '已处置',     value: 32,                color: '#1E8E3E', trend: 18, icon: 'Check' }
+  { key: 'total',  label: '预警总数', value: stats.value.total,  color: '#3C4043', icon: 'BellFilled' },
+  { key: 'red',    label: '红色预警', value: stats.value.level4, color: '#D93025', icon: 'Warning' },
+  { key: 'orange', label: '橙色预警', value: stats.value.level3, color: '#E8710A', icon: 'Warning' },
+  { key: 'yellow', label: '黄色预警', value: stats.value.level2, color: '#F29900', icon: 'Warning' },
+  { key: 'blue',   label: '蓝色预警', value: stats.value.level1, color: '#5F6368', icon: 'Warning' },
+  { key: 'done',   label: '已处置',   value: stats.value.done,   color: '#1E8E3E', icon: 'Check' }
 ])
 
 function statusText(s) {
@@ -194,20 +193,12 @@ async function loadPage() {
       triggeredAt: a.triggeredAt,
       longitude: a.longitude,
       latitude: a.latitude,
-      channels: a.channels ? a.channels.split(',') : ['in_site'],
+      channels: Array.isArray(a.channels) ? a.channels : (a.channels ? a.channels.split(',') : ['in_site']),
     }))
     total.value = pageRes?.total || 0
 
-    // 统计卡: 全量按等级计数 (size 取大值一次拉齐)
-    const allRes = await apiAlertPage({ page: 1, size: 1000 })
-    const all = allRes?.records || []
-    stats.value = {
-      total: allRes?.total || all.length,
-      l1: all.filter(r => r.level === 1).length,
-      l2: all.filter(r => r.level === 2).length,
-      l3: all.filter(r => r.level === 3).length,
-      l4: all.filter(r => r.level === 4).length,
-    }
+    const s = await apiAlertStats()
+    stats.value = { total: s.total, level1: s.level1, level2: s.level2, level3: s.level3, level4: s.level4, done: s.done }
   } finally { loading.value = false }
 }
 
@@ -242,7 +233,7 @@ onMounted(loadPage)
 .alert-page { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 
 /* 顶部统计 */
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
 .stat {
   --c: #3C4043;
   background: #fff;
@@ -265,10 +256,6 @@ onMounted(loadPage)
   .stat-body { flex: 1; }
   .stat-value { font-size: 26px; font-weight: 700; color: var(--au-text-strong); line-height: 1; }
   .stat-label { font-size: 12px; color: var(--au-text-secondary); margin-top: 4px; }
-  .stat-trend {
-    font-size: 11px; color: #1E8E3E; display: flex; align-items: center; gap: 2px;
-    padding: 2px 8px; background: #E6F4EA; border-radius: 16px;
-  }
 }
 
 /* Tab 栏 */
@@ -380,7 +367,7 @@ onMounted(loadPage)
 @media (max-width: 768px) {
   .alert-page { padding: 10px; gap: 10px; }
 
-  .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .stat { padding: 12px; gap: 10px; border-radius: 12px;
     .stat-icon { width: 36px; height: 36px; font-size: 18px; }
     .stat-value { font-size: 20px; }
@@ -416,6 +403,6 @@ onMounted(loadPage)
 }
 
 @media (max-width: 480px) {
-  .stats { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
 }
 </style>

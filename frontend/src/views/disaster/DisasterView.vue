@@ -63,11 +63,6 @@
               <span v-else class="text-3 fs-12">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="R_eff" width="100" align="right">
-            <template #default="{ row }">
-              <span class="num-mono fs-12">{{ Number(row.r_eff ?? 0).toFixed(0) }} <i class="unit">mm</i></span>
-            </template>
-          </el-table-column>
           <el-table-column label="综合指数" width="110" align="right">
             <template #default="{ row }">
               <span class="num-mono fs-12">{{ Number(row.comp_index ?? 0).toFixed(2) }}</span>
@@ -176,18 +171,20 @@ const tab = ref('risk')
 const YEARS = [2020, 2021, 2022, 2023]
 const RISK_TYPES = [
   { label: '综合', value: 'comp' },
-  { label: '降雨滑坡', value: 'landslide' },
-  { label: '降雨泥石流', value: 'mudslide' },
-  { label: '冻融滑坡', value: 'freezethaw' },
-  { label: '坡面崩塌', value: 'collapse' },
+  { label: '暴雨', value: 'rainstorm' },
+  { label: '高温热浪', value: 'heatwave' },
+  { label: '寒潮', value: 'coldwave' },
+  { label: '干旱', value: 'drought' },
+  { label: '森林火险', value: 'fireRisk' },
 ]
 const RISK_COLS = [
-  { col: 'landslide_level', short: '滑坡' },
-  { col: 'mudslide_level', short: '泥石流' },
-  { col: 'freezethaw_level', short: '冻融' },
-  { col: 'collapse_level', short: '崩塌' },
+  { col: 'rainstorm_level', short: '暴雨' },
+  { col: 'heatwave_level', short: '高温' },
+  { col: 'coldwave_level', short: '寒潮' },
+  { col: 'drought_level', short: '干旱' },
+  { col: 'fire_risk_level', short: '火险' },
 ]
-const RISK_TYPE_NAME = { landslide: '降雨滑坡', mudslide: '降雨泥石流', freezethaw: '冻融滑坡', collapse: '坡面崩塌' }
+const RISK_TYPE_NAME = { rainstorm: '暴雨', heatwave: '高温热浪', coldwave: '寒潮', drought: '干旱', fire_risk: '森林火险', fireRisk: '森林火险' }
 
 const riskRows = ref([])
 const riskTotal = ref(0)
@@ -199,10 +196,11 @@ const fmtDay = (d) => (d ? String(d).slice(0, 10) : '—')
 // 所选灾种 -> 等级列 & 列标题 (与后端 events 排序/过滤列保持一致)
 const TYPE_LEVEL_COL = {
   comp: 'comp_level',
-  landslide: 'landslide_level',
-  mudslide: 'mudslide_level',
-  freezethaw: 'freezethaw_level',
-  collapse: 'collapse_level',
+  rainstorm: 'rainstorm_level',
+  heatwave: 'heatwave_level',
+  coldwave: 'coldwave_level',
+  drought: 'drought_level',
+  fireRisk: 'fire_risk_level',
 }
 const levelCol = computed(() => TYPE_LEVEL_COL[riskFilter.type] || 'comp_level')
 const levelColLabel = computed(() => {
