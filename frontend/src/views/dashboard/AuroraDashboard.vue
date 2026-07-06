@@ -446,7 +446,7 @@ const trendStackMode = ref('stack')
 // ---------- History overview (2020–2023 真实判别结果) ----------
 const LV_COLOR = ['#94A3B8', '#2563EB', '#F59E0B', '#F97316', '#DC2626']
 const LV_NAME = ['无', '蓝色', '黄色', '橙色', '红色']
-const TYPE_NAME = { landslide: '降雨滑坡', mudslide: '降雨泥石流', freezethaw: '冻融滑坡', collapse: '坡面崩塌' }
+const TYPE_NAME = { landslide: '滑坡', mudslide: '暴雨', freezethaw: '高温热浪', collapse: '干旱' }
 const TYPE_COLOR = { landslide: '#6366F1', mudslide: '#06B6D4', freezethaw: '#3B82F6', collapse: '#8B5CF6' }
 
 // 概览年份默认跟随回放年份 (回放切到哪年, 概览就展示哪年)
@@ -543,8 +543,8 @@ const dailyHistory = ref([])
 /** 事件中占主导的灾种名 (取等级最高的灾种列) */
 function topTypeName(e) {
   const cols = [
-    ['landslide_level', '滑坡'], ['mudslide_level', '泥石流'],
-    ['freezethaw_level', '冻融滑坡'], ['collapse_level', '崩塌'],
+    ['landslide_level', '滑坡'], ['mudslide_level', '暴雨'],
+    ['freezethaw_level', '高温热浪'], ['collapse_level', '干旱'],
   ]
   let best = null, bestLv = 0
   for (const [col, name] of cols) {
@@ -625,7 +625,7 @@ const sensorReadings = computed(() => {
     { key: 'maxr', label: '最大有效雨量', value: max(e => e.r_eff).toFixed(1),   unit: 'mm', color: '#06B6D4' },
     { key: 'dtr',  label: '平均日较差',   value: avg(e => e.dtr).toFixed(1),     unit: '°C', color: '#F59E0B' },
     { key: 'ls',   label: '滑坡风险站',   value: String(cnt('landslide_level')), unit: '站', color: '#8B5CF6' },
-    { key: 'ms',   label: '泥石流风险站', value: String(cnt('mudslide_level')),  unit: '站', color: '#F97316' },
+    { key: 'ms',   label: '暴雨风险站',   value: String(cnt('mudslide_level')),  unit: '站', color: '#F97316' },
   ]
 })
 
@@ -700,10 +700,10 @@ function buildPieOption() {
   // 当日风险站点按灾种统计 (每站可能命中多灾种, 各计一次)
   const evs = dayEvents.value
   const defs = [
-    { col: 'landslide_level',  name: '滑坡',     color: '#6366F1' },
-    { col: 'mudslide_level',   name: '泥石流',   color: '#06B6D4' },
-    { col: 'freezethaw_level', name: '冻融滑坡', color: '#3B82F6' },
-    { col: 'collapse_level',   name: '崩塌',     color: '#8B5CF6' },
+    { col: 'landslide_level',  name: '滑坡',   color: '#6366F1' },
+    { col: 'mudslide_level',   name: '暴雨',   color: '#06B6D4' },
+    { col: 'freezethaw_level', name: '高温',   color: '#3B82F6' },
+    { col: 'collapse_level',   name: '干旱',   color: '#8B5CF6' },
   ]
   const types = defs
     .map(d => ({ name: d.name, value: evs.filter(e => (e[d.col] || 0) >= 1).length, color: d.color }))

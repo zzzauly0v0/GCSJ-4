@@ -176,18 +176,18 @@ const tab = ref('risk')
 const YEARS = [2020, 2021, 2022, 2023]
 const RISK_TYPES = [
   { label: '综合', value: 'comp' },
-  { label: '降雨滑坡', value: 'landslide' },
-  { label: '降雨泥石流', value: 'mudslide' },
-  { label: '冻融滑坡', value: 'freezethaw' },
-  { label: '坡面崩塌', value: 'collapse' },
+  { label: '滑坡', value: 'landslide' },
+  { label: '暴雨', value: 'mudslide' },
+  { label: '高温热浪', value: 'freezethaw' },
+  { label: '干旱', value: 'collapse' },
 ]
 const RISK_COLS = [
   { col: 'landslide_level', short: '滑坡' },
-  { col: 'mudslide_level', short: '泥石流' },
-  { col: 'freezethaw_level', short: '冻融' },
-  { col: 'collapse_level', short: '崩塌' },
+  { col: 'mudslide_level', short: '暴雨' },
+  { col: 'freezethaw_level', short: '高温' },
+  { col: 'collapse_level', short: '干旱' },
 ]
-const RISK_TYPE_NAME = { landslide: '降雨滑坡', mudslide: '降雨泥石流', freezethaw: '冻融滑坡', collapse: '坡面崩塌' }
+const RISK_TYPE_NAME = { landslide: '滑坡', mudslide: '暴雨', freezethaw: '高温热浪', collapse: '干旱' }
 
 const riskRows = ref([])
 const riskTotal = ref(0)

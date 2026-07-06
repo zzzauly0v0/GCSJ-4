@@ -489,6 +489,8 @@ async function syncLayersFromCrud() {
     for (const row of rows.value) {
       try {
         if (existingCodes.has(row.code)) continue
+        // visible=false 的图层不在"图层管理面板"显示，但保留在"图层数据维护"表格中
+        if (!row.visible) continue
         const meta = createMetaFromRow(row, PALETTE[colorIdx % PALETTE.length])
         colorIdx++
         layers.value.push(meta)
@@ -544,6 +546,8 @@ async function onDel(row) {
 async function onSwitchVisible(row) {
   await apiLayerUpdate(row.id, row)
   ElMessage.success('已更新')
+  // 切换 visible 后重新同步业务图层：关→面板移除，开→面板恢复
+  await loadCrud()
 }
 async function onPublish(row) {
   try {

@@ -185,13 +185,14 @@ public class DisasterEvalController {
                                               @RequestParam(required = false) String type,
                                               @RequestParam(defaultValue = "1") int page,
                                               @RequestParam(defaultValue = "20") int size) {
-        String col = TYPE_COL.getOrDefault(type, "comp_level");
-        // 未指定级别: 展示全部风险日 (>=1); 指定级别: 精确匹配该预警级别 (蓝/黄/橙/红)
+        String col = type != null ? TYPE_COL.getOrDefault(type, "comp_level") : "comp_level";
+        // 滑坡默认基线为1(所有记录都有), 未指定级别时用 >=2 排除低风险噪音
+        int defaultMin = "landslide".equals(type) ? 2 : 1;
         StringBuilder where = new StringBuilder(level != null
                 ? " WHERE e." + col + " = ? "
                 : " WHERE e." + col + " >= ? ");
         List<Object> args = new ArrayList<>();
-        args.add(level != null ? level : 1);
+        args.add(level != null ? level : defaultMin);
         if (year != null) { where.append(" AND EXTRACT(YEAR FROM e.obs_date) = ? "); args.add(year); }
 
         Integer total = jdbc.queryForObject(
@@ -202,16 +203,112 @@ public class DisasterEvalController {
         pageArgs.add((page - 1) * size);
         List<Map<String, Object>> list = jdbc.queryForList("""
             SELECT e.station_code, s.name AS station_name, e.obs_date,
-                   e.r_eff, e.landslide_level, e.mudslide_level,
+                   s.region_code,
+                   COALESCE(r.name, '') AS region_name,
+                   s.elevation,
+                   ST_X(s.location) AS lon, ST_Y(s.location) AS lat,
+                   e.r_eff, e.dtr,
+                   e.landslide_level, e.mudslide_level,
                    e.freezethaw_level, e.collapse_level, e.comp_level, e.comp_index
             FROM   biz.biz_disaster_eval e
             LEFT   JOIN gis.gis_weather_station s ON s.code = e.station_code
+            LEFT   JOIN gis.gis_admin_region r ON r.adcode = s.region_code
         """ + where + " ORDER BY e." + col + " DESC, e.obs_date DESC LIMIT ? OFFSET ?",
                 pageArgs.toArray());
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("total", total);
         out.put("list", list);
+        return Result.ok(out);
+    }
+
+    /** 预警统计 (总数 + 各等级/灾种数量, 供预警管理页统计卡与筛选标签) */
+    @Operation(summary = "预警统计 (等级分布 + 灾种分布)")
+    @GetMapping("/stats")
+    public Result<Map<String, Object>> stats(@RequestParam(required = false) Integer year,
+                                              @RequestParam(required = false) String type) {
+        String col = type != null ? TYPE_COL.getOrDefault(type, "comp_level") : "comp_level";
+        String wYear = year != null ? " AND EXTRACT(YEAR FROM obs_date) = " + year + " " : "";
+
+        Map<String, Object> out = new LinkedHashMap<>();
+
+        // 总数 (有风险日, level>=1; 滑坡默认基线为1, 用>=2 过滤低风险噪音)
+        int minLevel = "landslide".equals(type) ? 2 : 1;
+        out.put("total", jdbc.queryForObject(
+                "SELECT COUNT(*) FROM biz.biz_disaster_eval WHERE " + col + " >= " + minLevel + wYear, Integer.class));
+
+        // 按等级分布
+        out.put("byLevel", jdbc.queryForList(
+                "SELECT " + col + " AS level, COUNT(*) AS cnt FROM biz.biz_disaster_eval " +
+                "WHERE " + col + " >= " + minLevel + wYear + " GROUP BY " + col + " ORDER BY " + col));
+
+        // 按灾种分布 (滑坡使用 >=2 排除低风险基线噪音)
+        Map<String, Object> byType = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : Map.of(
+                "landslide", "landslide_level", "mudslide", "mudslide_level",
+                "freezethaw", "freezethaw_level", "collapse", "collapse_level").entrySet()) {
+            int thr = "landslide".equals(e.getKey()) ? 2 : 1;
+            Integer c = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM biz.biz_disaster_eval WHERE " + e.getValue() + " >= " + thr + wYear,
+                    Integer.class);
+            byType.put(e.getKey(), c);
+        }
+        out.put("byType", byType);
+
+        return Result.ok(out);
+    }
+
+    /** 单条预警详情：eval + 当日气象观测 + 站点信息 + 地形数据 */
+    @Operation(summary = "预警详情 (含气象监测数据、地形数据、判别依据)")
+    @GetMapping("/detail")
+    public Result<Map<String, Object>> detail(@RequestParam String stationCode,
+                                               @RequestParam String obsDate) {
+        // 1. 判别结果 + 站点信息 + 地形
+        Map<String, Object> eval = jdbc.queryForMap("""
+            SELECT e.station_code, s.name AS station_name, e.obs_date,
+                   s.region_code,
+                   COALESCE(r.name, '') AS region_name,
+                   s.elevation AS station_elevation,
+                   ST_X(s.location) AS lon, ST_Y(s.location) AS lat,
+                   e.r_eff, e.dtr,
+                   e.landslide_level, e.mudslide_level,
+                   e.freezethaw_level, e.collapse_level,
+                   e.comp_level, e.comp_index
+            FROM   biz.biz_disaster_eval e
+            LEFT   JOIN gis.gis_weather_station s ON s.code = e.station_code
+            LEFT   JOIN gis.gis_admin_region r ON r.adcode = s.region_code
+            WHERE  e.station_code = ? AND e.obs_date = ?::date
+        """, stationCode, obsDate);
+
+        // 2. 当日气象观测
+        Map<String, Object> weather = null;
+        List<Map<String, Object>> weatherRows = jdbc.queryForList("""
+            SELECT rainfall, temp_avg, temp_max, temp_min, rh_avg, rh_min,
+                   wind_avg, wind_max, pressure_avg
+            FROM   gis.gis_weather_daily
+            WHERE  station_code = ? AND obs_date = ?::date
+        """, stationCode, obsDate);
+        if (!weatherRows.isEmpty()) weather = weatherRows.get(0);
+
+        // 3. 月累计降水与无雨日比例 (干旱判别用)
+        LocalDate dt = LocalDate.parse(obsDate);
+        int month = dt.getMonthValue();
+        int year = dt.getYear();
+        Map<String, Object> monthlyStats = jdbc.queryForMap("""
+            SELECT COALESCE(SUM(rainfall), 0) AS monthly_rain,
+                   COUNT(*) AS days,
+                   COUNT(*) FILTER (WHERE rainfall < 0.1) AS dry_days
+            FROM   gis.gis_weather_daily
+            WHERE  station_code = ?
+              AND  EXTRACT(YEAR FROM obs_date) = ?
+              AND  EXTRACT(MONTH FROM obs_date) = ?
+        """, stationCode, year, month);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("eval", eval);
+        out.put("weather", weather);
+        out.put("monthly", monthlyStats);
+        out.put("month", month);
         return Result.ok(out);
     }
 

@@ -310,7 +310,7 @@ function refreshSensors() {
 
 // ---- Pie chart option — Disaster type distribution ----
 const pieOption = computed(() => {
-  const disasterTypes = ['滑坡', '泥石流', '崩塌', '地面沉降', '洪涝']
+  const disasterTypes = ['滑坡', '暴雨', '高温热浪', '干旱']
   const pieData = disasterTypes.map((name, i) => ({
     name,
     value: Math.round(10 + Math.random() * 25),
