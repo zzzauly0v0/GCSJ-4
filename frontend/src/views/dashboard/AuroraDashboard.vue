@@ -27,12 +27,12 @@
     </section>
 
     <!-- ============================================================
-         HISTORY — 2020–2023 历史气象灾害概览 (真实 CSV + 判别结果)
+         CUMULATIVE — 本年累计态势 (随回放进度条逐日累积, 数据来自当日推送)
     ============================================================ -->
     <section class="history-section">
       <AuCard
-        title="2020–2023 历史气象灾害概览"
-        subtitle="逐日气象观测 · 四类灾害判别"
+        title="本年累计态势"
+        :subtitle="`${replayStore.year} 年 · 截至 ${replayStore.virtualDate || '—'} 逐日累积`"
         gradient-border
         dot
         flat
@@ -40,60 +40,33 @@
       >
         <template #extra>
           <div class="hist-toolbar">
-            <AuSelect
-              v-model="histYear"
-              :options="[
-                { value: 0,    label: '全部年份' },
-                { value: 2020, label: '2020' },
-                { value: 2021, label: '2021' },
-                { value: 2022, label: '2022' },
-                { value: 2023, label: '2023' },
-              ]"
-              :width="120"
-            />
-            <router-link to="/history" class="see-all">进入分析页 →</router-link>
+            <span class="cum-progress">
+              已回放 {{ cumulative.playedDays }} 天 · 进度 {{ Math.round(replayStore.progress * 100) }}%
+            </span>
+            <router-link to="/disasters" class="see-all">进入分析页 →</router-link>
           </div>
         </template>
 
         <div class="hist-grid">
-          <!-- 数据规模 KPI -->
+          <!-- 累计规模 KPI -->
           <div class="hist-stats">
             <div class="hist-stat">
-              <span class="hist-stat-val">{{ histSummary.stationCount }}</span>
-              <span class="hist-stat-lbl">气象站点</span>
+              <span class="hist-stat-val">{{ cumulative.riskStations }}</span>
+              <span class="hist-stat-lbl">累计风险站次</span>
             </div>
-            <div class="hist-stat">
-              <span class="hist-stat-val">{{ histSummary.weatherDays }}</span>
-              <span class="hist-stat-lbl">逐日观测(条)</span>
+            <div class="hist-stat warn">
+              <span class="hist-stat-val">{{ cumulative.highRisk }}</span>
+              <span class="hist-stat-lbl">累计橙红高风险</span>
             </div>
             <div class="hist-stat danger">
-              <span class="hist-stat-val">{{ histSummary.riskDays }}</span>
-              <span class="hist-stat-lbl">判出风险日</span>
+              <span class="hist-stat-val">{{ cumulative.redStations }}</span>
+              <span class="hist-stat-lbl">累计红色站次</span>
             </div>
           </div>
 
-          <!-- 灾种分布饼 + 逐年趋势 -->
+          <!-- 累计灾种占比 + 逐日累计趋势 -->
           <div ref="histPieEl" class="hist-chart" />
           <div ref="histYearEl" class="hist-chart" />
-
-          <!-- Top 风险日列表 -->
-          <div class="hist-top">
-            <div class="hist-top-title">最高风险日 Top 8</div>
-            <div v-if="!histSummary.topEvents.length" class="hist-empty">
-              暂无判别结果，请先在分析页执行「执行灾害判别」
-            </div>
-            <div
-              v-for="(ev, i) in histSummary.topEvents"
-              :key="i"
-              class="hist-top-row"
-            >
-              <span class="ht-bar" :style="{ background: LV_COLOR[ev.comp_level] }" />
-              <span class="ht-station">{{ ev.station_name || ev.station_code }}</span>
-              <span class="ht-date">{{ String(ev.obs_date).slice(0, 10) }}</span>
-              <span class="ht-reff">R_eff {{ Number(ev.r_eff ?? 0).toFixed(0) }}</span>
-              <span class="ht-lv" :style="{ color: LV_COLOR[ev.comp_level] }">{{ LV_NAME[ev.comp_level] }}</span>
-            </div>
-          </div>
         </div>
       </AuCard>
     </section>
@@ -284,7 +257,7 @@ import * as echarts from 'echarts'
 import { useReplayStore } from '@/store/replay'
 import { apiDisasterGeoJson } from '@/api/disaster'
 import { apiRegionsGeoJson, apiRiversGeoJson, apiSettlementsGeoJson } from '@/api/gis'
-import { apiEvalSummary, apiEvalPush } from '@/api/disasterEval'
+import { apiEvalPush } from '@/api/disasterEval'
 import { useMap } from '@/hooks/useMap'
 import { useReplayLayers } from '@/hooks/useReplayLayers'
 import { useDisasterSocket } from '@/hooks/useDisasterSocket'
@@ -443,48 +416,86 @@ async function syncScLayer(key) {
 // ---------- Filters ----------
 const trendStackMode = ref('stack')
 
-// ---------- History overview (2020–2023 真实判别结果) ----------
+// ---------- 本年累计态势 (随回放进度条逐日累积, 数据完全来自当日推送, 零额外请求) ----------
 const LV_COLOR = ['#94A3B8', '#2563EB', '#F59E0B', '#F97316', '#DC2626']
 const LV_NAME = ['无', '蓝色', '黄色', '橙色', '红色']
-const TYPE_NAME = { landslide: '降雨滑坡', mudslide: '降雨泥石流', freezethaw: '冻融滑坡', collapse: '坡面崩塌' }
+const TYPE_NAME = { landslide: '滑坡', mudslide: '暴雨', freezethaw: '高温热浪', collapse: '干旱' }
 const TYPE_COLOR = { landslide: '#6366F1', mudslide: '#06B6D4', freezethaw: '#3B82F6', collapse: '#8B5CF6' }
+const TYPE_COLS = ['landslide_level', 'mudslide_level', 'freezethaw_level', 'collapse_level']
 
-// 概览年份默认跟随回放年份 (回放切到哪年, 概览就展示哪年)
-const histYear = ref(replayStore.year)
-const histSummary = ref({
-  stationCount: 0, weatherDays: 0, riskDays: 0,
-  byType: {}, byLevel: [], byYear: [], topEvents: [],
-})
 const histPieEl = ref(null)
 const histYearEl = ref(null)
 let histPieChart = null
 let histYearChart = null
 
-async function loadHistSummary() {
-  try {
-    const data = await apiEvalSummary(histYear.value || undefined)
-    histSummary.value = {
-      stationCount: data?.stationCount ?? 0,
-      weatherDays: data?.weatherDays ?? 0,
-      riskDays: data?.riskDays ?? 0,
-      byType: data?.byType ?? {},
-      byLevel: data?.byLevel ?? [],
-      byYear: data?.byYear ?? [],
-      topEvents: data?.topEvents ?? [],
+/**
+ * 逐日累计桶: date -> 该日汇总 (幂等, 同日重复推送覆盖不叠加, 保证拖拽/跳转不重复计数)。
+ * 每桶: { date, riskStations, high, red, byType:{landslide..}, maxComp, maxReff, topName }
+ * 由 useDisasterSocket 收到当日推送时写入 (见 recordDay)。
+ */
+const dayBuckets = ref({})
+
+/** 记录/覆盖某一天的累计桶 (幂等) */
+function recordDay(date, events) {
+  if (!date) return
+  const bucket = {
+    date, riskStations: 0, high: 0, red: 0,
+    byType: { landslide: 0, mudslide: 0, freezethaw: 0, collapse: 0 },
+    maxComp: 0, maxReff: 0, topName: null,
+  }
+  for (const e of events) {
+    const lv = e.comp_level || 0
+    if (lv >= 1) bucket.riskStations++
+    if (lv >= 3) bucket.high++
+    if (lv === 4) bucket.red++
+    for (const col of TYPE_COLS) {
+      if ((e[col] || 0) >= 1) bucket.byType[col.replace('_level', '')]++
     }
-  } catch (_) { /* request 拦截器已提示 */ }
-  renderHistCharts()
+    const reff = Number(e.r_eff ?? 0)
+    if (lv > bucket.maxComp || (lv === bucket.maxComp && reff > bucket.maxReff)) {
+      bucket.maxComp = lv
+      bucket.maxReff = reff
+      bucket.topName = e.station_name || e.station_code
+    }
+  }
+  dayBuckets.value = { ...dayBuckets.value, [date]: bucket }
 }
 
+/** 累计聚合: 对所有已记录日求和 (computed, Vue 缓存至 dayBuckets 变化才重算) */
+const cumulative = computed(() => {
+  const buckets = Object.values(dayBuckets.value)
+  const acc = {
+    playedDays: buckets.length,
+    riskStations: 0, highRisk: 0, redStations: 0,
+    byType: { landslide: 0, mudslide: 0, freezethaw: 0, collapse: 0 },
+    topDays: [],
+  }
+  for (const b of buckets) {
+    acc.riskStations += b.riskStations
+    acc.highRisk += b.high
+    acc.redStations += b.red
+    acc.byType.landslide += b.byType.landslide
+    acc.byType.mudslide += b.byType.mudslide
+    acc.byType.freezethaw += b.byType.freezethaw
+    acc.byType.collapse += b.byType.collapse
+  }
+  acc.topDays = buckets
+    .filter(b => b.maxComp >= 1)
+    .sort((a, b) => b.maxComp - a.maxComp || b.maxReff - a.maxReff || String(b.date).localeCompare(a.date))
+    .slice(0, 8)
+  return acc
+})
+
+// 累计灾种占比 -> 饼图
 function buildHistPieOption() {
-  const bt = histSummary.value.byType || {}
+  const bt = cumulative.value.byType
   const data = Object.keys(TYPE_NAME)
     .map(k => ({ name: TYPE_NAME[k], value: bt[k] || 0, itemStyle: { color: TYPE_COLOR[k] } }))
     .filter(d => d.value > 0)
   return {
     backgroundColor: 'transparent',
-    title: { text: '灾种风险日分布', left: 'center', top: 4, textStyle: { color: '#475569', fontSize: 12, fontWeight: 600 } },
-    tooltip: { trigger: 'item', formatter: (p) => `${p.name}<br/><b>${p.value}</b> 天 (${p.percent}%)` },
+    title: { text: '累计灾种占比', left: 'center', top: 4, textStyle: { color: '#475569', fontSize: 12, fontWeight: 600 } },
+    tooltip: { trigger: 'item', formatter: (p) => `${p.name}<br/><b>${p.value}</b> 站次 (${p.percent}%)` },
     legend: { bottom: 0, left: 'center', icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: '#475569', fontSize: 11 } },
     series: [{
       type: 'pie', radius: ['46%', '70%'], center: ['50%', '50%'],
@@ -496,25 +507,33 @@ function buildHistPieOption() {
   }
 }
 
+// 逐日累计风险站次趋势 -> 折线 (随回放推进逐日累加)
 function buildHistYearOption() {
-  const rows = histSummary.value.byYear || []
-  const years = rows.map(r => String(r.year))
-  const counts = rows.map(r => Number(r.cnt) || 0)
+  const buckets = Object.values(dayBuckets.value).sort((a, b) => String(a.date).localeCompare(b.date))
+  const dates = []
+  const cumRisk = []
+  let running = 0
+  for (const b of buckets) {
+    running += b.riskStations
+    dates.push(String(b.date).slice(5))   // MM-DD
+    cumRisk.push(running)
+  }
   return {
     backgroundColor: 'transparent',
-    title: { text: '逐年风险日趋势', left: 'center', top: 4, textStyle: { color: '#475569', fontSize: 12, fontWeight: 600 } },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    grid: { top: 40, left: 36, right: 16, bottom: 24, containLabel: false },
-    xAxis: { type: 'category', data: years.length ? years : ['2020', '2021', '2022', '2023'],
-      axisLine: { lineStyle: { color: '#CBD5E1' } }, axisTick: { show: false }, axisLabel: { color: '#64748B', fontSize: 11 } },
+    title: { text: '逐日累计风险站次', left: 'center', top: 4, textStyle: { color: '#475569', fontSize: 12, fontWeight: 600 } },
+    tooltip: { trigger: 'axis' },
+    grid: { top: 40, left: 40, right: 16, bottom: 24, containLabel: false },
+    xAxis: { type: 'category', boundaryGap: false, data: dates,
+      axisLine: { lineStyle: { color: '#CBD5E1' } }, axisTick: { show: false },
+      axisLabel: { color: '#64748B', fontSize: 10, interval: 'auto' } },
     yAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, axisTick: { show: false },
       axisLabel: { color: '#64748B', fontSize: 10 }, splitLine: { lineStyle: { color: '#E2E8F0', type: 'dashed' } } },
     series: [{
-      type: 'bar', data: counts.length ? counts : [0, 0, 0, 0], barWidth: '46%',
-      itemStyle: {
-        borderRadius: [4, 4, 0, 0],
+      type: 'line', smooth: true, symbol: 'none', data: cumRisk,
+      lineStyle: { width: 2, color: '#6366F1' },
+      areaStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: '#6366F1' }, { offset: 1, color: '#06B6D4' },
+          { offset: 0, color: '#6366F170' }, { offset: 1, color: '#06B6D408' },
         ]),
       },
     }],
@@ -535,7 +554,7 @@ function renderHistCharts() {
 // ---------- 当日风险事件 (由 /topic/disasters 每日推送驱动全部面板) ----------
 // events: [{ station_code, station_name, obs_date, lon, lat, r_eff, dtr,
 //            landslide_level, mudslide_level, freezethaw_level, collapse_level,
-//            comp_level, comp_index }]
+//            comp_level }]
 const dayEvents = ref([])
 // 逐日累积趋势历史: [{ date, 1, 2, 3, 4 }] — 随回放推进而增长
 const dailyHistory = ref([])
@@ -543,8 +562,8 @@ const dailyHistory = ref([])
 /** 事件中占主导的灾种名 (取等级最高的灾种列) */
 function topTypeName(e) {
   const cols = [
-    ['landslide_level', '滑坡'], ['mudslide_level', '泥石流'],
-    ['freezethaw_level', '冻融滑坡'], ['collapse_level', '崩塌'],
+    ['landslide_level', '滑坡'], ['mudslide_level', '暴雨'],
+    ['freezethaw_level', '高温热浪'], ['collapse_level', '干旱'],
   ]
   let best = null, bestLv = 0
   for (const [col, name] of cols) {
@@ -625,7 +644,7 @@ const sensorReadings = computed(() => {
     { key: 'maxr', label: '最大有效雨量', value: max(e => e.r_eff).toFixed(1),   unit: 'mm', color: '#06B6D4' },
     { key: 'dtr',  label: '平均日较差',   value: avg(e => e.dtr).toFixed(1),     unit: '°C', color: '#F59E0B' },
     { key: 'ls',   label: '滑坡风险站',   value: String(cnt('landslide_level')), unit: '站', color: '#8B5CF6' },
-    { key: 'ms',   label: '泥石流风险站', value: String(cnt('mudslide_level')),  unit: '站', color: '#F97316' },
+    { key: 'ms',   label: '暴雨风险站',   value: String(cnt('mudslide_level')),  unit: '站', color: '#F97316' },
   ]
 })
 
@@ -700,10 +719,10 @@ function buildPieOption() {
   // 当日风险站点按灾种统计 (每站可能命中多灾种, 各计一次)
   const evs = dayEvents.value
   const defs = [
-    { col: 'landslide_level',  name: '滑坡',     color: '#6366F1' },
-    { col: 'mudslide_level',   name: '泥石流',   color: '#06B6D4' },
-    { col: 'freezethaw_level', name: '冻融滑坡', color: '#3B82F6' },
-    { col: 'collapse_level',   name: '崩塌',     color: '#8B5CF6' },
+    { col: 'landslide_level',  name: '滑坡',   color: '#6366F1' },
+    { col: 'mudslide_level',   name: '暴雨',   color: '#06B6D4' },
+    { col: 'freezethaw_level', name: '高温',   color: '#3B82F6' },
+    { col: 'collapse_level',   name: '干旱',   color: '#8B5CF6' },
   ]
   const types = defs
     .map(d => ({ name: d.name, value: evs.filter(e => (e[d.col] || 0) >= 1).length, color: d.color }))
@@ -792,9 +811,13 @@ useDisasterSocket((payload) => {
     else hist.push(bucket)
     if (hist.length > 60) hist.shift()
     dailyHistory.value = [...hist]
+
+    // 本年累计态势: 幂等记录当日桶 (拖拽/跳转重复推送同日不叠加)
+    recordDay(payload.date, events)
   }
 
   renderCharts()
+  renderHistCharts()
 })
 
 // ---------- Lifecycle ----------
@@ -838,7 +861,7 @@ onMounted(async () => {
     pushDay()
   }, 0)
   renderCharts()
-  loadHistSummary()
+  renderHistCharts()
   resizeFn = () => { trendChart?.resize(); pieChart?.resize(); histPieChart?.resize(); histYearChart?.resize() }
   window.addEventListener('resize', resizeFn)
   // 回放模式下不再用 mock sensor 抖动, 由 reloadAll 在 virtualNow 变化时刷新
@@ -853,21 +876,15 @@ onBeforeUnmount(() => {
   replayLayers.detach()
 })
 
-// 年份切换 -> 重新拉历史概览; 选中具体年份时同步驱动回放年份 (双向锁定)
-watch(histYear, (y) => {
-  loadHistSummary()
-  if (y && y !== replayStore.year) replayStore.setYear(y)
-})
-
 // 趋势图堆叠/折线切换 -> 重绘
 watch(trendStackMode, () => renderCharts())
 
-// 回放年份切换 -> 清空逐日累积历史 (新的一年重新累积) + 同步概览年份
-watch(() => replayStore.year, (y) => {
+// 回放年份切换 -> 清空逐日累积 (新的一年重新累积)
+watch(() => replayStore.year, () => {
   dailyHistory.value = []
   dayEvents.value = []
-  // 概览面板始终与回放年份保持一致 (上面选 2020, 下面概览也切到 2020)
-  if (histYear.value !== y) histYear.value = y
+  dayBuckets.value = {}   // 累计态势归零, 重新逐日累积
+  renderHistCharts()
 })
 
 // 虚拟"日期"推进 -> 重新拉数据 (数据按天, 只在跨天时触发, 天然与地图推送同步)
@@ -991,6 +1008,9 @@ watch(() => replayStore.virtualDate, (d) => {
   border-radius: var(--au-radius-md);
 }
 .hist-stat.danger { border-color: #FCA5A5; background: rgba(220, 38, 38, 0.06); }
+.hist-stat.warn { border-color: #FDBA74; background: rgba(249, 115, 22, 0.06); }
+.hist-stat.warn .hist-stat-val { color: #EA580C; }
+.cum-progress { font-size: 12px; color: var(--au-text-secondary); font-family: var(--au-font-num); }
 .hist-stat-val {
   font-family: var(--au-font-num);
   font-size: 24px;

@@ -23,9 +23,8 @@ import { Style, Stroke, Fill, Circle as CircleStyle, Text } from 'ol/style'
 
 const LEVEL_COLOR = { 1: '#3B82F6', 2: '#F59E0B', 3: '#F97316', 4: '#DC2626' }
 
-/** 综合风险指数/等级 -> 热力权重 0..1 */
-function riskWeight(compIndex, compLevel) {
-  if (compIndex != null) return Math.max(0, Math.min(1, compIndex))
+/** 综合等级 -> 热力权重 0..1 */
+function riskWeight(compLevel) {
   return Math.max(0, Math.min(1, (compLevel || 0) / 4))
 }
 
@@ -134,7 +133,7 @@ export function useReplayLayers(olMapRef) {
 
   /**
    * 渲染某日推送的灾害判别结果。
-   * events: [{ station_code, station_name, lon, lat, comp_level, comp_index, ... }]
+   * events: [{ station_code, station_name, lon, lat, comp_level, r_eff, ... }]
    */
   function renderDisasters(events) {
     if (!attached) return
@@ -157,7 +156,7 @@ export function useReplayLayers(olMapRef) {
 
       // 风险热力
       const heatFeat = new Feature({ geometry: new Point(center3857) })
-      heatFeat.set('weight', riskWeight(e.comp_index, level))
+      heatFeat.set('weight', riskWeight(level))
       heatSrc.addFeature(heatFeat)
 
       // 高风险站点

@@ -29,6 +29,9 @@ services:
     image: docker.osgeo.org/geoserver:2.24.2
     container_name: gcsj-geoserver
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       GEOSERVER_ADMIN_USER: admin
       GEOSERVER_ADMIN_PASSWORD: gcsj123
@@ -38,7 +41,7 @@ services:
       - "8600:8080"
     volumes:
       - gcsj-gsdata:/opt/geoserver_data
-      - ../gis/styles:/opt/geoserver_data/styles:ro
+      - ../gis/styles:/opt/geoserver_data/styles
     networks: [gcsj-net]
 
   backend:
@@ -61,6 +64,26 @@ services:
       - "8085:8085"
     networks: [gcsj-net]
 
+  fastapi:
+    build:
+      context: ../spatial_analyse
+      dockerfile: Dockerfile
+    container_name: gcsj-fastapi
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # 从 spatial_analyse/.env 读取 DASHSCOPE_API_KEY / DASHSCOPE_MODEL_ID (不打进镜像)
+    env_file:
+      - ../spatial_analyse/.env
+    environment:
+      TZ: Asia/Shanghai
+      # 容器内通过服务名 postgres 访问数据库
+      DB_DSN: "host=postgres port=5432 dbname=gcsj user=gcsj password=gcsj123"
+    ports:
+      - "8062:8062"
+    networks: [gcsj-net]
+
   frontend:
     build:
       context: ../frontend
@@ -69,6 +92,7 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+      - fastapi
     ports:
       - "80:80"
     networks: [gcsj-net]
