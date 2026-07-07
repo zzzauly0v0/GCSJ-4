@@ -54,7 +54,7 @@
 
     <!-- 底部状态栏 -->
     <div class="footer">
-      <div class="copy">© {{ year }} GCSJ-4 · WebGIS Disaster Early-Warning Platform</div>
+      <div class="copy">© {{ year }} · WebGIS Disaster Early-Warning Platform</div>
     </div>
   </div>
 </template>
@@ -116,18 +116,19 @@ onBeforeUnmount(() => {
   color: var(--au-text-primary);
 }
 
-/* 视频背景：充满整屏 */
+/* 视频背景：充满整屏，降低亮度与饱和，避免过于炫目 */
 .bg-video {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
   z-index: 0;
   pointer-events: none;
+  filter: brightness(0.58) saturate(0.85) contrast(0.95);
 }
-/* 极淡蒙版：保留视频可见度，仅给文字一点对比 */
+/* 深色蒙版：进一步压暗背景，让银灰卡片浮起、黑色文字清晰 */
 .bg-overlay {
   position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.10) 100%);
+  background: linear-gradient(180deg, rgba(20,24,30,0.28) 0%, rgba(20,24,30,0.42) 100%);
   z-index: 1;
   pointer-events: none;
 }
@@ -138,11 +139,12 @@ onBeforeUnmount(() => {
   z-index: 3;
   .brand-mark {
     font-size: 28px; font-weight: 800; letter-spacing: 4px;
-    color: var(--au-text-strong);
+    color: #FFFFFF;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
   }
-  .brand-line { width: 1px; height: 36px; background: var(--au-border-base); }
-  .brand-title { font-size: 18px; font-weight: 600; color: var(--au-text-strong); }
-  .brand-sub { font-size: 11px; color: var(--au-text-secondary); letter-spacing: 1px; margin-top: 2px; }
+  .brand-line { width: 1px; height: 36px; background: rgba(255, 255, 255, 0.55); }
+  .brand-title { font-size: 18px; font-weight: 600; color: #FFFFFF; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45); }
+  .brand-sub { font-size: 11px; color: rgba(255, 255, 255, 0.80); letter-spacing: 1px; margin-top: 2px; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); }
 }
 
 .login-card {
@@ -150,71 +152,75 @@ onBeforeUnmount(() => {
   padding-bottom: 30px;
   z-index: 2;
   position: relative;
-  /* 毛玻璃：仅靠 backdrop-filter 模糊背景视频，自身几乎全透明 */
-  background: transparent;
-  border: 1px solid rgba(160, 160, 160, 0.45); // 边框透明度
+  /* 液态玻璃 · 银灰质感：半透明银灰渐变 + 背景模糊，卡内文字统一黑色 */
+  background: linear-gradient(155deg, rgba(238, 240, 243, 0.72) 0%, rgba(206, 210, 216, 0.62) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: var(--au-radius-lg);  // 继承16px的圆角度数
-  box-shadow: 0 8px 32px rgba(60, 64, 67, 0.18);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 12px 40px rgba(30, 34, 40, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.60);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
   overflow: hidden;
-  color: #FFFFFF;
+  color: #1A1A1A;
 }
 .card-head {
   display: flex; align-items: center; justify-content: space-between;
   height: 44px; padding: 0 20px;
   background: transparent;
   border-radius: var(--au-radius-lg) var(--au-radius-lg) 0 0;
-  .head-title { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600; color: rgba(255, 255, 255, 0.65) }
+  .head-title { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; color: #1A1A1A; }
   .dot {
     width: 6px; height: 6px; border-radius: 50%; background: #34D399;
     animation: blink 1.6s ease-in-out infinite;
   }
-  .head-time { font-family: var(--au-font-num); font-size: 12px; color: rgba(255,255,255,0.85); }
+  .head-time { font-family: var(--au-font-num); font-size: 12px; color: rgba(26, 26, 26, 0.75); }
 }
 .card-body { padding: 32px 28px 0; }
 
 :deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.10) !important;
-  border: 1px solid rgba(160, 160, 160, 0.45) !important;
-  box-shadow: none !important;
+  /* 冷调浅青灰磨砂：区别于卡片的中性银灰，也不再是刺眼纯白 */
+  background: rgba(226, 234, 240, 0.42) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: inset 0 1px 2px rgba(30, 34, 40, 0.10) !important;
   border-radius: var(--au-radius-md) !important;
   padding: 4px 12px !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  
-  &:hover {     
-    background: rgba(255, 255, 255, 0.18)  !important;
-    border-color: rgba(120, 120, 120, 0.40) !important;
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+
+  &:hover {
+    background: rgba(226, 234, 240, 0.56)  !important;
+    border-color: rgba(150, 158, 168, 0.55) !important;
   }
   &.is-focus {
-    border-color: rgba(99, 99, 99, 0.85) !important;
-    background: rgba(255, 255, 255, 0.18) !important;
-    box-shadow: 0 0 0 2px rgba(99, 99, 99, 0.15) !important;
+    border-color: rgba(95, 99, 104, 0.85) !important;
+    background: rgba(232, 239, 244, 0.66) !important;
+    box-shadow: 0 0 0 2px rgba(95, 99, 104, 0.18) !important;
   }
 }
 :deep(.el-input__inner) {
-  color: #FFFFFF !important;
+  color: #1A1A1A !important;
   height: 38px;
-  &::placeholder { color: rgba(255,255,255,0.65) !important; }
+  &::placeholder { color: rgba(26, 26, 26, 0.50) !important; }
 }
-:deep(.el-input__prefix), :deep(.el-input__suffix) { color: rgba(255,255,255,0.80); }
+:deep(.el-input__prefix), :deep(.el-input__suffix) { color: rgba(26, 26, 26, 0.70); }
 
 .submit {
   width: 100%;
   height: 44px;
   margin-top: 8px;
-  background: rgba(255, 255, 255, 0.15) !important;
-  border: 1px solid rgba(160, 160, 160, 0.50) !important;
-  color: rgba(255, 255, 255, 0.65) !important;
+  background: linear-gradient(155deg, rgba(230, 232, 236, 0.85) 0%, rgba(190, 194, 200, 0.80) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  color: #1A1A1A !important;
   border-radius: var(--au-radius-md) !important;
-  font-size: 28px; font-weight: 600; letter-spacing: 4px;
+  font-size: 22px; font-weight: 700; letter-spacing: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.60);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: all 0.2s;
   &:hover {
-    background: rgba(255, 255, 255, 0.18)  !important;
-    border-color: rgba(120, 120, 120, 0.40) !important;
+    background: linear-gradient(155deg, rgba(240, 242, 245, 0.92) 0%, rgba(205, 209, 214, 0.88) 100%) !important;
+    border-color: rgba(150, 154, 160, 0.55) !important;
     transform: translateY(-1px);
   }
 }
@@ -222,28 +228,29 @@ onBeforeUnmount(() => {
 .quick-tip {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-top: 20px; padding-top: 16px;
-  font-size: 16px; color: rgba(255, 255, 255, 0.80);
-  .tip-label { color: rgba(255, 255, 255, 0.65); }
+  font-size: 16px; color: #1A1A1A;
+  .tip-label { color: rgba(26, 26, 26, 0.70); }
   .tip-item {
-    color: rgba(255, 255, 255, 0.65); 
+    color: #1A1A1A;
     cursor: pointer; padding: 1px 10px;
-    border: 1px solid rgba(160, 160, 160, 0.45);
-    background: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.45);
     border-radius: var(--au-radius-sm);
     transition: all 0.2s;
     &:hover {
-      background: rgba(255, 255, 255, 0.18);
-      border-color: rgba(120, 120, 120, 0.40);
+      background: rgba(255, 255, 255, 0.65);
+      border-color: rgba(150, 154, 160, 0.55);
     }
   }
-  .tip-pwd { color: rgba(255, 255, 255, 0.65); }
+  .tip-pwd { color: rgba(26, 26, 26, 0.70); }
 }
 
 .footer {
   position: absolute; bottom: 24px; left: 0; right: 0;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 40px;
-  font-size: 12px; color: var(--au-text-secondary);
+  font-size: 12px; color: rgba(255, 255, 255, 0.80);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   z-index: 3;
   .status { display: flex; align-items: center; gap: 8px; color: #1E8E3E;
     .led {
