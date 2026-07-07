@@ -12,10 +12,6 @@
 SET search_path TO biz, sys, gis, public, postgis;
 
 -- =========================== 清理 (重复执行用) ============================
-DROP VIEW IF EXISTS biz.v_event_by_county CASCADE;
-DROP VIEW IF EXISTS biz.v_event_river_distance CASCADE;
-DROP VIEW IF EXISTS biz.v_settlement_at_risk CASCADE;
-
 DROP TABLE IF EXISTS gis.gis_settlement CASCADE;
 DROP TABLE IF EXISTS gis.gis_river CASCADE;
 DROP TABLE IF EXISTS gis.gis_admin_region CASCADE;
@@ -112,16 +108,6 @@ INSERT INTO gis.gis_settlement (name, type, population, geom) VALUES
  ('康定',     'county', 13, ST_SetSRID(ST_MakePoint(101.964, 30.050), 4326)),
  ('汉源县城', 'county', 15, ST_SetSRID(ST_MakePoint(102.679, 29.350), 4326));
 
--- =========================== 应急预案 seed (四川特定) ============================
-INSERT INTO biz.biz_emergency_plan (code, name, disaster_type, level, content, enabled) VALUES
- ('PLAN-SC-LANDSLIDE-O','川西高山滑坡橙色响应预案','landslide',3,
-  '1.立即封闭灾点 1km 半径道路 2.疏散影响范围内居民 3.通知应急、消防、武警 4.启动专家组现场会商 5.每 15 分钟上报',TRUE),
- ('PLAN-SC-DEBRIS-R','泥石流红色响应预案','debris_flow',4,
-  '1.封闭沟口 5km 路段 2.疏散下游居民点 3.调集大型清淤机械 4.设置警戒线与监测仪 5.连续上报至灾害解除',TRUE),
- ('PLAN-SC-COLLAPSE-Y','岩崩黄色响应预案','collapse',2,
-  '1.设警戒标识 2.封闭直接威胁路段 3.加密人工巡查 4.必要时主动清除危岩',TRUE)
-ON CONFLICT (code) DO NOTHING;
-
 -- =========================== gis_layer 注册 ============================
 -- 行政区/河流/居民点 → 矢量图层 (走后端 GeoJSON)
 INSERT INTO gis.gis_layer (name, code, type, source_url, visible, z_index, description) VALUES
@@ -131,60 +117,6 @@ INSERT INTO gis.gis_layer (name, code, type, source_url, visible, z_index, descr
  ('主要河流',     'biz_sc_rivers',     'vector', '/api/rivers/geojson',                        TRUE,  25, '四川六大水系'),
  ('居民点',       'biz_sc_settlement', 'vector', '/api/settlements/geojson',                   FALSE, 28, '城市/县城/重点乡镇')
 ON CONFLICT (code) DO NOTHING;
-
--- =========================== 空间分析视图 (体现 PostGIS) ============================
-
--- 视图 1: 按县聚合灾害密度
--- 用法: SELECT * FROM biz.v_event_by_county WHERE event_count > 0;
-CREATE OR REPLACE VIEW biz.v_event_by_county AS
-SELECT r.adcode,
-       r.name                                              AS county_name,
-       r.area_km2,
-       COUNT(e.id)                                          AS event_count,
-       COUNT(e.id) FILTER (WHERE e.level >= 3)              AS high_level_count,
-       ROUND( (COUNT(e.id)::numeric / NULLIF(r.area_km2, 0)) * 100, 4) AS density_per_100km2
-FROM   gis.gis_admin_region r
-LEFT   JOIN biz.biz_disaster_event e
-       ON  ST_Within(e.location, r.boundary)
-       AND e.deleted = FALSE
-WHERE  r.level = 3
-GROUP  BY r.adcode, r.name, r.area_km2;
-COMMENT ON VIEW biz.v_event_by_county IS '按区县聚合灾害事件数与密度 (依赖 admin_region 数据已入库)';
-
--- 视图 2: 灾害点 → 最近河流距离 (米)
--- 用法: SELECT * FROM biz.v_event_river_distance ORDER BY distance_m;
-CREATE OR REPLACE VIEW biz.v_event_river_distance AS
-SELECT e.id           AS event_id,
-       e.code         AS event_code,
-       e.title,
-       n.name         AS nearest_river,
-       ROUND(n.distance_m::numeric, 1) AS distance_m
-FROM   biz.biz_disaster_event e
-CROSS  JOIN LATERAL (
-    SELECT r.name, ST_Distance(e.location::geography, r.geom::geography) AS distance_m
-    FROM   gis.gis_river r
-    ORDER  BY e.location <-> r.geom        -- KNN 索引加速
-    LIMIT  1
-) n
-WHERE  e.deleted = FALSE;
-COMMENT ON VIEW biz.v_event_river_distance IS '每个灾害点距离最近河流的距离 (geography 米精度, 用 KNN <-> 加速)';
-
--- 视图 3: 进行中事件 5km 内受影响居民点
--- 用法: SELECT * FROM biz.v_settlement_at_risk WHERE event_id = ?;
-CREATE OR REPLACE VIEW biz.v_settlement_at_risk AS
-SELECT e.id                                                AS event_id,
-       e.code                                              AS event_code,
-       e.level                                             AS event_level,
-       s.name                                              AS settlement_name,
-       s.type                                              AS settlement_type,
-       s.population,
-       ROUND(ST_Distance(s.geom::geography, e.location::geography)::numeric, 1) AS distance_m
-FROM   biz.biz_disaster_event e
-JOIN   gis.gis_settlement s
-       ON  ST_DWithin(s.geom::geography, e.location::geography, 5000)
-WHERE  e.status = 1
-  AND  e.deleted = FALSE;
-COMMENT ON VIEW biz.v_settlement_at_risk IS '进行中事件 5km 缓冲内的居民点 (ST_DWithin 米精度)';
 
 -- =========================== 数据落入回填 ============================
 -- 灾害事件 → 所在区县 (region_code 回填)

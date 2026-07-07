@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
-import { compose } from 'ol/transform'
 
 const routes = [
   {
@@ -26,13 +25,13 @@ const routes = [
         path: 'agent',
         name: 'Agent',
         component: () => import('@/views/agent/AgentView.vue'),
-        meta: { title: 'AI灾害助手', icon: 'ChatDotRound', permission: 'dashboard:view' }
+        meta: { title: 'AI灾害助手', icon: 'ChatDotRound', permission: 'agent:view' }
       },
       {
         path: 'disasters',
         name: 'Disasters',
         component: () => import('@/views/disaster/DisasterView.vue'),
-        meta: { title: '灾害事件', icon: 'Warning', permission: 'disaster:view' }
+        meta: { title: '历史灾害分析', icon: 'Warning', permission: 'disaster:view' }
       },
       {
         path: 'alerts',
@@ -45,12 +44,6 @@ const routes = [
         name: 'Layers',
         component: () => import('@/views/layer/LayerView.vue'),
         meta: { title: '空间图层', icon: 'MapLocation', permission: 'layer:view' }
-      },
-      {
-        path: 'plans',
-        name: 'Plans',
-        component: () => import('@/views/plan/PlanView.vue'),
-        meta: { title: '应急预案', icon: 'Document', permission: 'plan:view', hideInMenu: true }
       },
       {
         path: 'system',

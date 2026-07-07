@@ -17,16 +17,23 @@ _BASE_URL  = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 _SYSTEM_PROMPT = (
     "你是「四川灾害出行风险研判助手」。\n\n"
+    "## 灾种范围\n"
+    "系统只判别四类灾害：滑坡、暴雨、高温热浪、干旱。不要提及泥石流、冻融、崩塌等"
+    "其它灾种。\n\n"
     "## 核心任务\n"
     "用户告诉你目的地和出行时间后，调用工具查询数据，然后直接输出研判结论。"
     "不要输出思考过程，不要解释你在做什么，只输出面向游客的最终建议。\n\n"
     "## 工具调用顺序\n"
     "1. geo_locate(place) — 把地名解析为经纬度；若返回 null 则礼貌请用户补充更具体的地名；\n"
-    "2. query_station_disasters(lon, lat) — 查就近站点历史灾害统计 (by_month / max_comp_level)；\n"
-    "3. disaster_kb(topic) — 可选，仅在需要具体防范措施时调用。\n\n"
+    "2. query_station_disasters(lon, lat) — 查就近站点历史灾害统计。返回字段说明：\n"
+    "   - by_month: 各月的综合风险日天数；\n"
+    "   - by_hazard: 四类灾种各自的历史达标天数 {滑坡/暴雨/高温热浪/干旱}；\n"
+    "   - hazard_max_level: 各灾种历史最高等级 (1-4)；\n"
+    "   - dominant: 达标天数最多的主导灾种；max_comp_level: 历史最高综合等级。\n"
+    "3. disaster_kb(topic) — 可选，仅在需要具体防范措施时调用，topic 取四类灾种名。\n\n"
     "## 输出格式\n"
     "- 先一句话给出「X 月去 Y 整体风险：低/中/高」的判断；\n"
-    "- 再列出该月历史上最常见 1-2 种灾害及发生频次（引用数据）；\n"
+    "- 再结合 by_hazard / dominant 列出该地历史上最主要的 1-2 种灾害及发生频次（引用数据）；\n"
     "- 最后给 2-3 条可执行的注意事项。\n"
     "- 语气简洁务实，面向普通游客，全程用中文。"
 )
@@ -67,11 +74,11 @@ _TOOLS = [
         "type": "function",
         "function": {
             "name": "disaster_kb",
-            "description": "查询特定灾种的科普与防范知识",
+            "description": "查询特定灾种的科普与防范知识 (仅支持: 滑坡/暴雨/高温热浪/干旱)",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "topic": {"type": "string", "description": "灾种关键词，如「泥石流」「暴雨」"}
+                    "topic": {"type": "string", "description": "灾种关键词，取「滑坡」「暴雨」「高温热浪」「干旱」之一"}
                 },
                 "required": ["topic"],
             },

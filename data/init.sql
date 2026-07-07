@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS postgis SCHEMA postgis;
 
 -- 核心业务模式
 CREATE SCHEMA IF NOT EXISTS sys;  -- 系统基础、权限、日志
-CREATE SCHEMA IF NOT EXISTS biz;  -- 灾害事件、预警、应急
+CREATE SCHEMA IF NOT EXISTS biz;  -- 灾害事件、预警、灾害判别结果
 CREATE SCHEMA IF NOT EXISTS gis;  -- 空间地图图层
 
 -- 设置数据库默认的寻址路径 (非常重要！这决定了你后端代码能否直接用表名)
@@ -30,7 +30,6 @@ DROP TABLE IF EXISTS sys.sys_user CASCADE;
 
 -- 业务模块
 DROP TABLE IF EXISTS biz.biz_alert CASCADE;
-DROP TABLE IF EXISTS biz.biz_emergency_plan CASCADE;
 DROP TABLE IF EXISTS biz.biz_disaster_event CASCADE;
 
 -- 地图模块
@@ -191,40 +190,23 @@ CREATE INDEX idx_alert_level ON biz.biz_alert(level);
 CREATE INDEX idx_alert_status ON biz.biz_alert(status);
 CREATE INDEX idx_alert_event ON biz.biz_alert(event_id);
 
--- =========================== 应急预案 ============================
-CREATE TABLE biz.biz_emergency_plan (
-    id BIGSERIAL PRIMARY KEY,
-    code VARCHAR(64) UNIQUE NOT NULL,
-    name VARCHAR(256) NOT NULL,
-    disaster_type VARCHAR(32),
-    level SMALLINT,                       -- 应用的预警等级阈值
-    content TEXT,
-    file_url VARCHAR(512),
-    enabled BOOLEAN DEFAULT TRUE,
-    deleted BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-COMMENT ON TABLE biz.biz_emergency_plan IS '应急预案';
-
 -- =========================== 种子数据 ============================
--- 角色
+-- 角色 (仅两级: 管理员 / 普通用户)
 INSERT INTO sys.sys_role (name, code, description) VALUES
- ('超级管理员', 'ROLE_ADMIN', '系统超级管理员'),
- ('监测员', 'ROLE_OPERATOR', '负责监测数据查看与上报'),
- ('普通用户', 'ROLE_VIEWER', '仅可查看公开数据');
+ ('管理员',   'ROLE_ADMIN', '系统管理员, 可访问全部功能含系统管理'),
+ ('普通用户', 'ROLE_USER',  '业务用户, 可访问全部业务功能, 不含系统管理');
 
 -- 权限 (菜单)
--- 顶级菜单
+-- 顶级菜单 (业务功能, 普通用户全部可见)
 INSERT INTO sys.sys_permission (name, code, type, parent_id, path, icon, sort) VALUES
- ('监测大屏', 'dashboard:view',  1, NULL, '/dashboard', 'DataLine',    1),
- ('灾害事件', 'disaster:view',   1, NULL, '/disasters', 'Warning',     2),
- ('预警管理', 'alert:view',      1, NULL, '/alerts',    'BellFilled',  3),
- ('图层管理', 'layer:view',      1, NULL, '/layers',    'MapLocation', 4),
- ('应急预案', 'plan:view',       1, NULL, '/plans',     'Document',    5),
- ('系统管理', 'system:view',     1, NULL, '/system',    'Setting',     6);
+ ('监测大屏',   'dashboard:view', 1, NULL, '/dashboard', 'DataLine',     1),
+ ('AI灾害助手', 'agent:view',     1, NULL, '/agent',     'ChatDotRound', 2),
+ ('灾害事件',   'disaster:view',  1, NULL, '/disasters', 'Warning',      3),
+ ('预警管理',   'alert:view',     1, NULL, '/alerts',    'BellFilled',   4),
+ ('空间图层',   'layer:view',     1, NULL, '/layers',    'MapLocation',  5),
+ ('系统管理',   'system:view',    1, NULL, '/system',    'Setting',      6);
 
--- 系统管理下的子菜单 (parent_id 用子查询取, 不依赖隐式 BIGSERIAL 跳号)
+-- 系统管理下的子菜单 (parent_id 用子查询取, 不依赖隐式 BIGSERIAL 跳号; 仅管理员可见)
 INSERT INTO sys.sys_permission (name, code, type, parent_id, path, icon, sort) VALUES
  ('用户管理', 'user:view',       1, (SELECT id FROM sys.sys_permission WHERE code='system:view'), '/system/users',        'User',       1),
  ('角色管理', 'role:view',       1, (SELECT id FROM sys.sys_permission WHERE code='system:view'), '/system/roles',        'UserFilled', 2),
@@ -232,28 +214,29 @@ INSERT INTO sys.sys_permission (name, code, type, parent_id, path, icon, sort) V
  ('数据字典', 'dict:view',       1, (SELECT id FROM sys.sys_permission WHERE code='system:view'), '/system/dictionaries', 'Collection', 4),
  ('操作日志', 'log:view',        1, (SELECT id FROM sys.sys_permission WHERE code='system:view'), '/system/logs',         'List',       5);
 
--- 角色-权限
+-- 角色-权限 (按 code 关联, 不依赖 BIGSERIAL 具体值)
 -- ROLE_ADMIN: 全部权限
 INSERT INTO sys.sys_role_permission (role_id, permission_id)
- SELECT 1, id FROM sys.sys_permission;
--- ROLE_OPERATOR: 业务相关全开 (大屏/灾害/预警/图层/应急预案), 不含系统管理
+ SELECT r.id, p.id
+ FROM sys.sys_role r CROSS JOIN sys.sys_permission p
+ WHERE r.code = 'ROLE_ADMIN';
+-- ROLE_USER: 全部业务功能 (大屏/AI助手/灾害/预警/图层), 不含系统管理及其子菜单
 INSERT INTO sys.sys_role_permission (role_id, permission_id)
- SELECT 2, id FROM sys.sys_permission WHERE code IN (
-   'dashboard:view','disaster:view','alert:view','layer:view','plan:view'
- );
--- ROLE_VIEWER: 只读核心数据 (大屏/灾害/预警)
-INSERT INTO sys.sys_role_permission (role_id, permission_id)
- SELECT 3, id FROM sys.sys_permission WHERE code IN (
-   'dashboard:view','disaster:view','alert:view'
- );
+ SELECT r.id, p.id
+ FROM sys.sys_role r CROSS JOIN sys.sys_permission p
+ WHERE r.code = 'ROLE_USER'
+   AND p.code IN ('dashboard:view','agent:view','disaster:view','alert:view','layer:view');
 
 -- 用户 (密码 BCrypt of "123456":  $2a$10$.sLUmtS1msqUQYEKDdxpZeIuE3jNsR6mTvjeqTHW34G4BLCFpoi.O)
 INSERT INTO sys.sys_user (username, password, real_name, phone, email, status) VALUES
  ('admin', '$2a$10$.sLUmtS1msqUQYEKDdxpZeIuE3jNsR6mTvjeqTHW34G4BLCFpoi.O', '系统管理员', '13800000001', 'admin@gcsj.local', 1),
- ('operator', '$2a$10$.sLUmtS1msqUQYEKDdxpZeIuE3jNsR6mTvjeqTHW34G4BLCFpoi.O', '监测员001', '13800000002', 'op@gcsj.local', 1),
- ('viewer', '$2a$10$.sLUmtS1msqUQYEKDdxpZeIuE3jNsR6mTvjeqTHW34G4BLCFpoi.O', '游客', '13800000003', 'viewer@gcsj.local', 1);
+ ('user',  '$2a$10$.sLUmtS1msqUQYEKDdxpZeIuE3jNsR6mTvjeqTHW34G4BLCFpoi.O', '普通用户',   '13800000002', 'user@gcsj.local',  1);
 
-INSERT INTO sys.sys_user_role (user_id, role_id) VALUES (1,1),(2,2),(3,3);
+-- 用户-角色 (按 username / role code 关联)
+INSERT INTO sys.sys_user_role (user_id, role_id)
+ SELECT u.id, r.id FROM sys.sys_user u, sys.sys_role r
+ WHERE (u.username = 'admin' AND r.code = 'ROLE_ADMIN')
+    OR (u.username = 'user'  AND r.code = 'ROLE_USER');
 
 -- 字典
 INSERT INTO sys.sys_dictionary (type_code, item_code, item_value, sort, description) VALUES
@@ -294,11 +277,6 @@ INSERT INTO gis.gis_layer (name, code, type, source_url, visible, z_index, descr
  -- 业务图层 (z_index 10+, 高于底图)
  ('灾害事件图层',  'biz_events',        'vector', '/api/disasters/geojson', TRUE, 15, '灾害事件多边形 + 中心点'),
  ('预警图层',      'biz_alerts',        'vector', '/api/alerts/geojson',    TRUE, 30, '预警事件图层 (高等级带脉冲)');
-
--- 应急预案
-INSERT INTO biz.biz_emergency_plan (code, name, disaster_type, level, content, enabled) VALUES
- ('PLAN-LANDSLIDE-Y','滑坡黄色预警响应预案','landslide',2,'1.通知现场负责人 2.撤离100m缓冲区人员 3.每30分钟上报一次',TRUE),
- ('PLAN-FLOOD-O','洪涝橙色预警响应预案','flood',3,'1.启动排涝设备 2.封闭低洼路段 3.通知下游村镇',TRUE);
 
 -- =====================================================
 -- 完成

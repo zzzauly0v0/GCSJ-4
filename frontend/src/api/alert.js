@@ -9,4 +9,3 @@ export const apiAlertGenerateFromEval = (year, minLevel) =>
   request.post('/alerts/generate-from-eval', null, { params: { year: year ?? undefined, minLevel } })
 export const apiAlertLatest = (params) => request.get('/alerts/latest', { params })
 export const apiAlertGeoJson = () => request.get('/alerts/geojson')
-export const apiAlertStats = () => request.get('/alerts/stats')

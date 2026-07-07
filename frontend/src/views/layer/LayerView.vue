@@ -128,12 +128,14 @@ import VectorLayer from 'ol/layer/Vector'
 import VectorSource from 'ol/source/Vector'
 import OSM from 'ol/source/OSM'
 import XYZ from 'ol/source/XYZ'
+import TileWMS from 'ol/source/TileWMS'
 import GeoJSON from 'ol/format/GeoJSON'
 import { fromLonLat, toLonLat } from 'ol/proj'
 import { defaults as defaultControls, ScaleLine } from 'ol/control'
 import { Style, Stroke, Fill, Circle as CircleStyle, Text } from 'ol/style'
 import { apiLayerList, apiLayerCreate, apiLayerUpdate, apiLayerDelete, apiLayerPublish } from '@/api/layer'
 import { apiRegionsGeoJson, apiRiversGeoJson, apiSettlementsGeoJson } from '@/api/gis'
+import request from '@/utils/request'
 
 /* ------------------------------ Tab ------------------------------ */
 const tab = ref('manage')
@@ -156,6 +158,102 @@ let baseLayer = null
 
 // OL 实例的引用 (key = layer.code)
 const olLayers = {}
+
+// 颜色轮盘（给数据库新增图层自动分配颜色）
+const PALETTE = ['#EF4444', '#F59E0B', '#22C55E', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#06B6D4']
+
+// 四川内置图层 code，不会被 CRUD 同步移除
+const BUILTIN_CODES = new Set(['sc_province', 'sc_city', 'sc_county', 'sc_river', 'sc_settlement'])
+
+function resolveTileUrl(rawUrl) {
+  if (!rawUrl) return ''
+  return rawUrl.replace(/\$\{(VITE_[A-Z0-9_]+)\}/g, (_, key) => {
+    return import.meta.env[key] ?? ''
+  })
+}
+
+function normalizeSourceUrl(url) {
+  if (!url || !import.meta.env.DEV) return url
+  const target = import.meta.env.VITE_GEOSERVER_PROXY_TARGET || 'http://localhost:8600'
+  const prefix = target.endsWith('/') ? target + 'geoserver/' : target + '/geoserver/'
+  if (url.startsWith(prefix)) {
+    return url.replace(prefix, '/geoserver/')
+  }
+  return url
+}
+
+
+function fetchWithAuth(url) {
+  if (url && url.startsWith('/api/')) {
+    const path = url.replace(/^\/api/, '')
+    return request.get(path)
+  }
+  return fetch(url, { headers: {} }).then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return r.json()
+  })
+}
+
+function isWfsSource(row) {
+  if (!row) return false
+  return row.sourceUrl && /\/wfs(\?|$)/i.test(row.sourceUrl)
+}
+
+function buildWfsUrl(row) {
+  if (!isWfsSource(row)) return null
+  const typeName = row.workspace
+    ? `${row.workspace}:${row.layerName || row.code}`
+    : (row.layerName || row.code)
+  const sep = row.sourceUrl.includes('?') ? '&' : '?'
+  return `${row.sourceUrl}${sep}service=WFS&version=1.0.0&request=GetFeature&typeName=${encodeURIComponent(typeName)}&outputFormat=application/json`
+}
+
+function makeFetcher(row) {
+  if (!row) return null
+  // WMS/raster 图层由 OpenLayers TileWMS 直接渲染，不需要前端拉取 GeoJSON
+  if (row.type === 'wms' || row.type === 'raster') return null
+  const wfsUrl = isWfsSource(row) ? buildWfsUrl(row) : null
+  if (wfsUrl) {
+    return async () => {
+      const r = await fetch(wfsUrl)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      return r.json()
+    }
+  }
+  if (row.sourceUrl) {
+    return () => fetchWithAuth(row.sourceUrl)
+  }
+  return null
+}
+
+// 从数据库行构建图层元数据
+function createMetaFromRow(row, color) {
+  if (!row) throw new Error('createMetaFromRow: row is null')
+  const normalizedSourceUrl = normalizeSourceUrl(row.sourceUrl)
+  const wfsRow = { ...row, sourceUrl: normalizedSourceUrl }
+  const wfsUrl = isWfsSource(wfsRow) ? buildWfsUrl(wfsRow) : null
+  return {
+    code: row.code,
+    name: row.name,
+    type: row.type,
+    color,
+    visible: !!row.visible,
+    opacity: 0.85,
+    zIndex: row.zIndex ?? 10,
+    count: null,
+    loaded: false,
+    sourceUrl: normalizedSourceUrl,
+    layerName: row.layerName,
+    wfsUrl,
+    fetcher: makeFetcher(wfsRow),
+    style: {
+      stroke: color,
+      strokeWidth: 1.5,
+      fill: color + '10',
+      strokeDash: null
+    }
+  }
+}
 
 // 与左侧面板绑定的图层定义 (响应式)
 const layers = ref([
@@ -212,6 +310,32 @@ function buildBasemap(kind) {
     })
   }
   return new TileLayer({ source: new OSM({ crossOrigin: 'anonymous' }), zIndex: 0 })
+}
+
+function buildTileLayer(meta) {
+  const url = resolveTileUrl(meta.sourceUrl)
+  return new TileLayer({
+    source: new XYZ({ url, crossOrigin: 'anonymous' }),
+    visible: !!meta.visible,
+    opacity: meta.opacity ?? 0.95,
+    zIndex: meta.zIndex ?? 0
+  })
+}
+
+function buildWMSLayer(meta) {
+  const url = resolveTileUrl(meta.sourceUrl)
+  const layerName = meta.layerName || meta.code
+  return new TileLayer({
+    source: new TileWMS({
+      url,
+      params: { LAYERS: layerName, TILED: true },
+      crossOrigin: 'anonymous',
+      serverType: 'geoserver'
+    }),
+    visible: !!meta.visible,
+    opacity: meta.opacity ?? 0.85,
+    zIndex: meta.zIndex ?? 5
+  })
 }
 
 /* ------------------------------ 矢量样式 ------------------------------ */
@@ -274,6 +398,9 @@ async function loadLayer(meta) {
   loading.value = true
   try {
     const geojson = await meta.fetcher()
+    if (!geojson || typeof geojson !== 'object' || !geojson.type) {
+      throw new Error('返回的不是有效 GeoJSON')
+    }
     const lyr = olLayers[meta.code]
     if (!lyr) return
     const features = fmt.readFeatures(geojson, {
@@ -285,7 +412,8 @@ async function loadLayer(meta) {
     meta.count = features.length
     meta.loaded = true
   } catch (e) {
-    ElMessage.error(`图层 [${meta.name}] 加载失败: ${e?.message || e}`)
+    const detail = meta.wfsUrl ? `\nURL: ${meta.wfsUrl}` : ''
+    ElMessage.error(`图层 [${meta.name}] 加载失败: ${e?.message || e}${detail}`)
   } finally {
     loading.value = false
   }
@@ -296,6 +424,11 @@ async function onToggle(meta, visible) {
   meta.visible = !!visible
   const lyr = olLayers[meta.code]
   if (lyr) lyr.setVisible(meta.visible)
+  // WMS/raster 无需加载 GeoJSON，直接标记为已加载
+  if (meta.type === 'wms' || meta.type === 'raster') {
+    meta.loaded = true
+    return
+  }
   if (meta.visible && !meta.loaded) {
     await loadLayer(meta)
   }
@@ -324,7 +457,76 @@ const rows = ref([])
 const dlg = ref(false)
 const form = reactive({ id: null, name: '', code: '', type: 'vector', sourceUrl: '', workspace: '', layerName: '', pgTable: '', style: '', visible: true, zIndex: 0 })
 
-async function loadCrud() { rows.value = await apiLayerList() }
+async function loadCrud() {
+  try {
+    const data = await apiLayerList()
+    console.log('[LayerView] apiLayerList rows:', data)
+    rows.value = Array.isArray(data) ? data : []
+    await syncLayersFromCrud()
+  } catch (e) {
+    console.error('[LayerView] loadCrud failed:', e)
+    ElMessage.error(`图层目录加载失败: ${e?.message || e}`)
+  }
+}
+
+// 将 CRUD 表格数据同步到左侧业务图层列表和地图
+async function syncLayersFromCrud() {
+  try {
+    // 1. 移除所有非内置图层的 OL 对象
+    const toRemove = layers.value.filter(l => !BUILTIN_CODES.has(l.code))
+    for (const meta of toRemove) {
+      const lyr = olLayers[meta.code]
+      if (lyr && olMap) olMap.removeLayer(lyr)
+      delete olLayers[meta.code]
+    }
+    // 保留内置图层
+    layers.value = layers.value.filter(l => BUILTIN_CODES.has(l.code))
+
+    // 2. 追加数据库中非重复图层
+    let colorIdx = layers.value.length
+    const existingCodes = new Set(layers.value.map(l => l.code))
+
+    for (const row of rows.value) {
+      try {
+        if (existingCodes.has(row.code)) continue
+        // visible=false 的图层不在"图层管理面板"显示，但保留在"图层数据维护"表格中
+        if (!row.visible) continue
+        const meta = createMetaFromRow(row, PALETTE[colorIdx % PALETTE.length])
+        colorIdx++
+        layers.value.push(meta)
+        existingCodes.add(row.code)
+
+        if (!olMap) continue
+
+        let lyr = null
+        if (row.type === 'vector') {
+          lyr = buildVectorLayer(meta)
+        } else if (row.type === 'xyz' || row.type === 'wmts') {
+          lyr = buildTileLayer(meta)
+          meta.loaded = true
+        } else if (row.type === 'wms' || row.type === 'raster') {
+          lyr = buildWMSLayer(meta)
+          meta.loaded = true
+        }
+
+        if (lyr) {
+          olLayers[meta.code] = lyr
+          olMap.addLayer(lyr)
+          if (row.type === 'vector' && meta.visible) await loadLayer(meta)
+        }
+      } catch (err) {
+        console.error(`[LayerView] sync row ${row?.code} failed:`, err)
+        ElMessage.error(`同步图层 [${row?.name || row?.code}] 失败: ${err?.message || err}`)
+      }
+    }
+
+    console.log('[LayerView] synced layers:', layers.value.map(l => l.code))
+  } catch (e) {
+    console.error('[LayerView] syncLayersFromCrud failed:', e)
+    ElMessage.error(`图层同步失败: ${e?.message || e}`)
+  }
+}
+
 function reset() { Object.assign(form, { id: null, name: '', code: '', type: 'vector', sourceUrl: '', workspace: '', layerName: '', pgTable: '', style: '', visible: true, zIndex: 0 }) }
 function onAdd() { reset(); dlg.value = true }
 function onEdit(row) { Object.assign(form, row); dlg.value = true }
@@ -333,17 +535,19 @@ async function onSave() {
   else await apiLayerCreate(form)
   ElMessage.success('已保存')
   dlg.value = false
-  loadCrud()
+  await loadCrud()
 }
 async function onDel(row) {
   await ElMessageBox.confirm(`删除图层 [${row.name}]?`, '确认')
   await apiLayerDelete(row.id)
   ElMessage.success('已删除')
-  loadCrud()
+  await loadCrud()
 }
 async function onSwitchVisible(row) {
   await apiLayerUpdate(row.id, row)
   ElMessage.success('已更新')
+  // 切换 visible 后重新同步业务图层：关→面板移除，开→面板恢复
+  await loadCrud()
 }
 async function onPublish(row) {
   try {
@@ -396,7 +600,7 @@ onMounted(async () => {
     if (meta.visible) await loadLayer(meta)
   }
 
-  loadCrud()
+  await loadCrud()
 })
 
 onBeforeUnmount(() => {
@@ -495,6 +699,12 @@ onBeforeUnmount(() => {
   }
   .meta-tag.tag-line { background: #E0F2FE; color: #0284C7; }
   .meta-tag.tag-point { background: #FFF7ED; color: #C2410C; }
+  .meta-tag.tag-vector { background: #EFF6FF; color: #2563EB; }
+  .meta-tag.tag-polygon { background: #F0FDF4; color: #16A34A; }
+  .meta-tag.tag-raster { background: #FEF2F2; color: #DC2626; }
+  .meta-tag.tag-wms { background: #FEF3C7; color: #D97706; }
+  .meta-tag.tag-wmts { background: #F5F3FF; color: #7C3AED; }
+  .meta-tag.tag-xyz { background: #ECFDF5; color: #059669; }
   .opacity-slider {
     margin-top: 6px;
     margin-left: 22px;

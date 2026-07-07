@@ -220,8 +220,7 @@ const userName = computed(() => userStore.profile?.realName || userStore.profile
 const userRole = computed(() => userStore.roleCodes?.[0] || 'GUEST')
 const shortName = computed(() => (userStore.profile?.realName || userStore.profile?.username || 'U').slice(0, 1).toUpperCase())
 const envLabel = import.meta.env.MODE === 'production' ? 'PROD' : 'DEV'
-
-// const coordLabel = computed(() => '104.0000°E · 35.0000°N · EPSG:3857')
+const coordLabel = computed(() => '')
 
 // 菜单
 function canAccess(meta) {

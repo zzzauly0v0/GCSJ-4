@@ -9,11 +9,14 @@ from agents import function_tool
 from spatial_analyse.tools.db import DB_DSN
 
 # 四类灾种列 -> 中文名
+# 注: 列名沿用早期设计的旧语义, 实际存储的灾种见 04_disaster_eval_schema.sql
+#     与 merged_disaster_eval.py: landslide=滑坡(CRI) / mudslide=暴雨 /
+#     freezethaw=高温热浪 / collapse=干旱。
 _HAZARD_COLS = {
     "landslide_level": "滑坡",
-    "mudslide_level": "泥石流",
-    "freezethaw_level": "冻融滑坡",
-    "collapse_level": "坡面崩塌",
+    "mudslide_level": "暴雨",
+    "freezethaw_level": "高温热浪",
+    "collapse_level": "干旱",
 }
 
 
@@ -25,13 +28,22 @@ def summarize_disasters(rows: list) -> dict:
     """
     by_level = {1: 0, 2: 0, 3: 0, 4: 0}
     by_month = {m: 0 for m in range(1, 13)}
-    hazard_weight = {name: 0 for name in _HAZARD_COLS.values()}
+    # 每种灾种的达标天数 (该灾种等级 >=1 的天数) 与最高等级
+    hazard_days = {name: 0 for name in _HAZARD_COLS.values()}
+    hazard_max = {name: 0 for name in _HAZARD_COLS.values()}
     risk_days = 0
     max_comp = 0
 
     for r in rows:
         cl = int(r.get("comp_level") or 0)
         max_comp = max(max_comp, cl)
+        # 各灾种独立统计 (不受综合等级门槛限制)
+        for col, name in _HAZARD_COLS.items():
+            lv = int(r.get(col) or 0)
+            if lv >= 1:
+                hazard_days[name] += 1
+            if lv > hazard_max[name]:
+                hazard_max[name] = lv
         if cl >= 1:
             risk_days += 1
             if cl in by_level:
@@ -39,14 +51,12 @@ def summarize_disasters(rows: list) -> dict:
             m = int(r.get("obs_date_month") or 0)
             if 1 <= m <= 12:
                 by_month[m] += 1
-            # 主导灾种: 累加各灾种等级作为权重
-            for col, name in _HAZARD_COLS.items():
-                hazard_weight[name] += int(r.get(col) or 0)
 
+    # 主导灾种: 达标天数最多者
     dominant = "无"
     if risk_days > 0:
-        dominant = max(hazard_weight, key=hazard_weight.get)
-        if hazard_weight[dominant] == 0:
+        dominant = max(hazard_days, key=hazard_days.get)
+        if hazard_days[dominant] == 0:
             dominant = "无"
 
     return {
@@ -54,6 +64,8 @@ def summarize_disasters(rows: list) -> dict:
         "risk_days": risk_days,
         "by_level": by_level,
         "by_month": by_month,
+        "by_hazard": hazard_days,      # 各灾种达标天数 {滑坡/暴雨/高温热浪/干旱}
+        "hazard_max_level": hazard_max,  # 各灾种历史最高等级
         "max_comp_level": max_comp,
         "dominant": dominant,
     }
