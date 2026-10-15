@@ -2,6 +2,7 @@ package com.gcsj.disaster.controller;
 
 import com.gcsj.disaster.common.Result;
 import com.gcsj.disaster.domain.dto.CreateLayerDTO;
+import com.gcsj.disaster.domain.dto.PublishLayerDTO;
 import com.gcsj.disaster.domain.vo.LayerVO;
 import com.gcsj.disaster.service.ILayerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,5 +53,11 @@ public class LayerController {
     public Result<Void> delete(@PathVariable Long id) {
         layerService.deleteById(id);
         return Result.ok();
+    }
+
+    @Operation(summary = "发布图层到 GeoServer（占位接口，当前会返回 GEOSERVER_ERROR）")
+    @PostMapping("/{id}/publish")
+    public Result<LayerVO> publish(@PathVariable Long id, @Valid @RequestBody PublishLayerDTO dto) {
+        return Result.ok(layerService.publishToGeoServer(id, dto));
     }
 }

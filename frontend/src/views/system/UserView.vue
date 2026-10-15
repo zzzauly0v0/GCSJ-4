@@ -153,4 +153,18 @@ onMounted(async () => { roles.value = await apiRoleList(); loadPage() })
   &.off { background: rgba(239,68,68,0.1); color: #DC2626; .led { background: #EF4444; } }
 }
 .pager { padding: 14px; display: flex; justify-content: flex-end; }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .page { padding: 10px; gap: 10px; }
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px;
+  }
+  .toolbar-left, .toolbar-right { width: 100%; flex-wrap: wrap; }
+  .toolbar-right { justify-content: flex-end; }
+  .pager { justify-content: center; padding: 10px; }
+}
 </style>

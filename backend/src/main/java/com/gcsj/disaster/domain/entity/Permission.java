@@ -7,7 +7,7 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(name = "sys_permission")
+@Table(name = "sys_permission", schema = "sys")
 public class Permission extends BaseEntity {
 
     @Column(nullable = false, length = 64)

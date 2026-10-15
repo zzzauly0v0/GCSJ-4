@@ -13,8 +13,6 @@ public class UserVO {
     private String phone;
     private String email;
     private String avatar;
-    private Long orgId;
-    private String orgName;
     private Short status;
     private OffsetDateTime lastLoginAt;
     private OffsetDateTime createdAt;

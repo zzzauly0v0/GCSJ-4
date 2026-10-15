@@ -8,7 +8,7 @@ import org.locationtech.jts.geom.Polygon;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(name = "gis_layer")
+@Table(name = "gis_layer", schema = "gis")
 public class Layer extends BaseEntity {
     @Column(nullable = false, length = 128)
     private String name;

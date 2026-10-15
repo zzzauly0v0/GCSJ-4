@@ -8,9 +8,9 @@ import lombok.Getter;
  * 0           : 成功
  * 1xxxx       : 系统级
  * 2xxxx       : 用户/认证
- * 3xxxx       : 传感/观测
  * 4xxxx       : 预警/事件
  * 5xxxx       : 空间/图层
+ * 6xxxx       : 字典
  * 9xxxx       : 第三方
  */
 @Getter
@@ -37,13 +37,7 @@ public enum ErrorCode {
     ROLE_NOT_FOUND(20101, "角色不存在"),
     PERMISSION_DENIED(20102, "权限不足"),
 
-    // 传感/观测
-    SENSOR_NOT_FOUND(30001, "传感器不存在"),
-    SENSOR_CODE_DUPLICATE(30002, "传感器编码已存在"),
-    OBSERVATION_INVALID(30101, "观测数据非法"),
-
     // 预警/事件
-    ALERT_RULE_NOT_FOUND(40001, "预警规则不存在"),
     ALERT_NOT_FOUND(40101, "预警事件不存在"),
     DISASTER_EVENT_NOT_FOUND(40201, "灾害事件不存在"),
     ALERT_DISPATCH_FAILED(40301, "预警发布失败"),
@@ -52,8 +46,11 @@ public enum ErrorCode {
     LAYER_NOT_FOUND(50001, "图层不存在"),
     GEOMETRY_INVALID(50002, "空间数据格式不合法"),
 
+    // 字典
+    DICTIONARY_NOT_FOUND(60001, "字典项不存在"),
+    DICTIONARY_DUPLICATE(60002, "同类型下字典项编码已存在"),
+
     // 第三方
-    WEATHER_API_ERROR(90001, "气象数据接口错误"),
     GEOSERVER_ERROR(90002, "GeoServer 调用错误");
 
     private final Integer code;

@@ -1,116 +1,114 @@
-/* ============================================================
-   GCSJ 设计系统 - 气象浅色主题
-   ============================================================ */
+/*
+ * main.scss — Legacy compatibility shim (Aurora Light)
+ *
+ * 老页面（gcsj-card / dash-panel / role-list / lvl-tag）仍然引用 var(--border)、
+ * var(--primary)、var(--text-1~4)、var(--alert-*) 这些旧 token。
+ * 这里把它们全部接到 aurora 灰阶 token 上，让旧页面一次性拿到统一样式。
+ *
+ * DO NOT add new styles here. Use src/styles/theme-aurora.css for design tokens,
+ * and component-scoped styles for component-specific rules.
+ */
 
+/* Remap legacy tokens → aurora 灰阶 */
 :root {
-  /* 预警等级色（保留语义色） */
-  --alert-blue:   #3B82F6;
-  --alert-yellow: #F59E0B;
-  --alert-orange: #F97316;
-  --alert-red:    #EF4444;
+  /* 国标预警等级（沿用 aurora 状态色） */
+  --alert-blue:   #5F6368;
+  --alert-yellow: #F29900;
+  --alert-orange: #E8710A;
+  --alert-red:    #D93025;
 
-  /* 大屏 / 后台共用浅色主题 */
-  --bg:           #F4F7FB;
-  --bg-soft:      #EEF3F9;
+  --border:       #E8EAED;
+  --border-soft:  #F1F3F4;
+  --bg:           rgb(248, 249, 252);
+  --bg-soft:      rgb(248, 249, 252);
   --panel:        #FFFFFF;
-  --panel-soft:   #F8FAFC;
-  --border:       #E5E9F0;
-  --border-soft:  #EEF1F6;
+  --panel-soft:   rgb(248, 249, 252);
 
-  --text-1:       #0F172A;
-  --text-2:       #475569;
-  --text-3:       #94A3B8;
-  --text-4:       #CBD5E1;
+  --text-1:       #202124;
+  --text-2:       #3C4043;
+  --text-3:       #5F6368;
+  --text-4:       #BDC1C6;
 
-  --primary:      #0EA5E9;
-  --primary-soft: #E0F2FE;
-  --primary-deep: #0284C7;
-  --accent:       #10B981;
-  --accent-soft:  #D1FAE5;
+  --primary:      #3C4043;
+  --primary-soft: #F1F3F4;
+  --primary-deep: #202124;
+  --accent:       #1E8E3E;
+  --accent-soft:  #E6F4EA;
 
-  /* 大屏沿用同一套 token，避免双主题维护 */
-  --dash-bg:      var(--bg);
-  --dash-panel:   var(--panel);
-  --dash-border:  var(--border);
-  --dash-text-1:  var(--text-1);
-  --dash-text-2:  var(--text-2);
-  --dash-text-3:  var(--text-3);
-  --dash-accent:  var(--primary);
-
-  /* 阴影 */
-  --shadow-sm:    0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md:    0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-lg:    0 4px 12px rgba(15, 23, 42, 0.06);
+  --dash-border:  #E8EAED;
+  --dash-text-1:  #202124;
+  --dash-text-2:  #3C4043;
+  --dash-text-3:  #5F6368;
+  --dash-accent:  #3C4043;
 }
 
-/* ---------- reset ---------- */
-html, body, #app {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  color: var(--text-1);
-  background: var(--bg);
-}
-* { box-sizing: border-box; }
-ul, ol, li { list-style: none; padding: 0; margin: 0; }
-a { color: inherit; text-decoration: none; }
+/* ================================================================
+ * LEGACY COMPONENT CLASSES
+ * Remapped to use STORMWATCH tokens
+ * ================================================================ */
 
-/* ---------- 通用工具 ---------- */
-.flex            { display: flex; }
-.flex-col        { display: flex; flex-direction: column; }
-.flex-center     { display: flex; align-items: center; justify-content: center; }
-.flex-between    { display: flex; align-items: center; justify-content: space-between; }
-.flex-1          { flex: 1; min-width: 0; min-height: 0; }
-.gap-8           { gap: 8px; }  .gap-12 { gap: 12px; }  .gap-16 { gap: 16px; }
-.text-2          { color: var(--text-2); }
-.text-3          { color: var(--text-3); }
-.fs-12           { font-size: 12px; }
-.fs-13           { font-size: 13px; }
-.fs-14           { font-size: 14px; }
-
-/* ---------- 后台页面 ---------- */
 .gcsj-page {
-  padding: 16px;
+  padding: 14px;
+  min-height: 100%;
+  /* 【已删除】background: var(--bg-console); */
 }
+
 .gcsj-card {
-  background: var(--panel);
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-panel);
+  border-radius: 2px;
+  /* 【已删除】background, box-shadow, clip-path (去除了黑色切角和暗色面板背景) */
 }
+
 .gcsj-card-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px; border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-separator);
+
   .title {
-    font-size: 15px; font-weight: 600; color: var(--text-1);
-    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--signal-crystal);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
     &::before {
-      content: ''; width: 3px; height: 14px; background: var(--primary); border-radius: 2px;
+      content: '';
+      width: 2px;
+      height: 12px;
+      background: var(--signal-crystal);
+      box-shadow: 0 0 6px var(--signal-crystal);
     }
   }
 }
-.gcsj-card-body { padding: 18px; }
 
-/* ---------- 大屏共用（浅色版） ---------- */
+.gcsj-card-body {
+  padding: 14px 16px;
+}
+
+/* ================================================================
+ * LEGACY DASH PANEL CLASSES
+ * ================================================================ */
 .dash-root {
   position: relative;
-  background: var(--bg);
-  color: var(--text-1);
+  color: var(--text-primary);
   min-height: 100%;
   overflow: hidden;
 }
 
 .dash-panel {
   position: relative;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-panel);
+  border-radius: 2px;
+  /* 【已删除】background, box-shadow */
 }
 
-/* 历史装饰 (corner / before / after) — 保留占位但隐藏，避免老页面报错 */
+/* Remove legacy decorative corners (replaced by CSS clip-path) */
 .dash-panel::before,
 .dash-panel::after,
 .dash-panel .corner-bl,
@@ -119,87 +117,83 @@ a { color: inherit; text-decoration: none; }
 }
 
 .dash-panel-title {
-  display: flex; align-items: center; gap: 8px;
-  height: 44px;
-  padding: 0 16px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-1);
-  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--signal-crystal);
+  border-bottom: 1px solid var(--border-separator);
+  /* 【已删除】background: linear-gradient(...) 蓝黑渐变色 */
+
   .dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--primary);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--signal-crystal);
+    box-shadow: 0 0 5px var(--signal-crystal);
+    animation: led-pulse 2400ms ease-in-out infinite;
+    animation-delay: 1400ms;
   }
-  .extra { margin-left: auto; font-size: 12px; color: var(--text-3); font-weight: 400; }
+
+  .extra {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+  }
 }
 
-/* 浅色滚动条 */
-.dash-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-.dash-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
-.dash-scroll::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
-.dash-scroll::-webkit-scrollbar-track { background: transparent; }
+/* STORMWATCH scrollbar (replaces legacy dash-scroll) */
+.dash-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
 
-/* ---------- 数字字体 ---------- */
+.dash-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 0;
+}
+
+.dash-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.dash-scroll::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+/* Monospace number utility */
 .num-mono {
-  font-family: 'SF Pro Display', 'Inter', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-mono) !important;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
-/* ---------- 预警等级标签 ---------- */
+/* Alert level tags — redirect to STORMWATCH token classes */
 .lvl-tag {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border-radius: 4px;
-  font-size: 12px; font-weight: 600;
-  background: color-mix(in srgb, currentColor 12%, transparent);
-}
-.lvl-1 { color: var(--alert-blue); }
-.lvl-2 { color: var(--alert-yellow); }
-.lvl-3 { color: var(--alert-orange); }
-.lvl-4 { color: var(--alert-red); }
-
-/* ---------- ElementPlus 微调 ---------- */
-.el-button--primary {
-  --el-button-bg-color: var(--primary);
-  --el-button-border-color: var(--primary);
-  --el-button-hover-bg-color: var(--primary-deep);
-  --el-button-hover-border-color: var(--primary-deep);
-}
-.el-table { font-size: 13px; }
-.el-table th.el-table__cell {
-  background: var(--panel-soft) !important;
-  color: var(--text-2);
-  font-weight: 600;
+  /* defined in globals.css */
 }
 
-/* 大屏内的 ElementPlus 适配（也是浅色） */
-.dash-root {
-  .el-empty__description p { color: var(--text-3); }
+.lvl-1 {
+  color: var(--level-1-color);
 }
 
-/* ---------- OL 地图覆盖（浅色） ---------- */
-.ol-zoom {
-  top: auto !important;
-  bottom: 16px !important;
-  left: 16px !important;
-  background: transparent !important;
+.lvl-2 {
+  color: var(--level-2-color);
 }
-.ol-zoom .ol-zoom-in,
-.ol-zoom .ol-zoom-out {
-  background: #fff !important;
-  color: var(--text-1) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 6px !important;
-  margin-bottom: 4px !important;
-  box-shadow: var(--shadow-sm);
+
+.lvl-3 {
+  color: var(--level-3-color);
 }
-.ol-zoom .ol-zoom-in:hover,
-.ol-zoom .ol-zoom-out:hover {
-  background: var(--primary-soft) !important;
-  color: var(--primary-deep) !important;
-}
-.ol-attribution {
-  background: rgba(255, 255, 255, 0.85) !important;
-  color: var(--text-3) !important;
-  ul, a { color: var(--text-3) !important; }
+
+.lvl-4 {
+  color: var(--level-4-color);
 }

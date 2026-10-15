@@ -80,7 +80,6 @@ public class UserServiceImpl implements IUserService {
         u.setRealName(dto.getRealName());
         u.setPhone(dto.getPhone());
         u.setEmail(dto.getEmail());
-        u.setOrgId(dto.getOrgId());
         u.setStatus((short) 1);
         userRepository.save(u);
         if (dto.getRoleIds() != null) {
@@ -99,7 +98,6 @@ public class UserServiceImpl implements IUserService {
         if (dto.getRealName() != null) u.setRealName(dto.getRealName());
         if (dto.getPhone() != null) u.setPhone(dto.getPhone());
         if (dto.getEmail() != null) u.setEmail(dto.getEmail());
-        if (dto.getOrgId() != null) u.setOrgId(dto.getOrgId());
         if (dto.getStatus() != null) u.setStatus(dto.getStatus());
         userRepository.save(u);
         if (dto.getRoleIds() != null) {

@@ -1,0 +1,15 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.git
+.gitignore
+.env
+.env.local
+*.md
+README.md
+LICENSE
+.DS_Store
+Dockerfile
+docker-compose.yml
+tests

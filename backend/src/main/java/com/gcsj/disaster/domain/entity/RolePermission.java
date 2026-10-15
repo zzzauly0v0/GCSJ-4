@@ -11,7 +11,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "sys_role_permission")
+@Table(name = "sys_role_permission", schema = "sys")
 @IdClass(RolePermission.PK.class)
 public class RolePermission {
     @Id

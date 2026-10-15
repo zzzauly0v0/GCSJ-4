@@ -5,8 +5,7 @@ export const useMapStore = defineStore('map', {
     // 默认中心: 中国大致几何中心 (EPSG:4326), 用于初始化地图
     center: [104.0, 35.0],
     zoom: 5,
-    activeLayers: ['base', 'sensors', 'alerts', 'disasters'],
-    sensors: { type: 'FeatureCollection', features: [] },
+    activeLayers: ['base', 'alerts', 'disasters'],
     alerts: { type: 'FeatureCollection', features: [] },
     disasters: { type: 'FeatureCollection', features: [] }
   }),
@@ -20,7 +19,6 @@ export const useMapStore = defineStore('map', {
       if (i >= 0) this.activeLayers.splice(i, 1)
       else this.activeLayers.push(key)
     },
-    setSensors(geo) { this.sensors = geo },
     setAlerts(geo) { this.alerts = geo },
     setDisasters(geo) { this.disasters = geo }
   }

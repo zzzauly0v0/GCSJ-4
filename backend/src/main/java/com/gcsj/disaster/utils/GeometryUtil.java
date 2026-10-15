@@ -12,6 +12,7 @@ import java.util.Map;
 /**
  * 空间数据工具 - GeoJSON 与 JTS Geometry 互转
  * 数据存储坐标系: EPSG:4326
+ * and 3857
  */
 public final class GeometryUtil {
 

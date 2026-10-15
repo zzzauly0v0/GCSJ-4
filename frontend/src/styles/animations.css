@@ -1,0 +1,300 @@
+/*
+ * GCSJ STORMWATCH — Animation Library
+ * animations.css — All @keyframes + stagger utility classes
+ *
+ * Boot Sequence Choreography (4 phases):
+ *   Phase 1 (0–300ms):   Grid overlay sweeps in from left
+ *   Phase 2 (300–700ms): Map basemap fades in
+ *   Phase 3 (700–1200ms): Panels cascade down with translateY + opacity
+ *   Phase 4 (1200ms+):   Live tickers, LED blinks, scanlines activate
+ *
+ * All timings: var(--ease-power-on) = cubic-bezier(0.16, 1, 0.3, 1)
+ * Continuous motion: scanlines, grid-pulse, data-shimmer, radar-sweep
+ */
+
+/* ================================================================
+ * PHASE 1 — Grid sweep (background grid reveals left → right)
+ * ================================================================ */
+@keyframes grid-sweep-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0 0% 0 0);
+    opacity: 1;
+  }
+}
+
+/* ================================================================
+ * PHASE 2 — Basemap / main background reveal
+ * ================================================================ */
+@keyframes basemap-reveal {
+  0%   { opacity: 0; filter: brightness(0) saturate(0); }
+  60%  { opacity: 0.6; filter: brightness(0.4) saturate(0.3); }
+  100% { opacity: 1; filter: brightness(1) saturate(1); }
+}
+
+/* ================================================================
+ * PHASE 3 — Panel cascade entry (staggered)
+ * Each panel: translateY(24px) + opacity(0) → resting state
+ * ================================================================ */
+@keyframes panel-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(22px);
+    filter: brightness(0.3);
+  }
+  60% {
+    opacity: 0.85;
+    transform: translateY(4px);
+    filter: brightness(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+}
+
+@keyframes panel-enter-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-22px);
+    filter: brightness(0.3);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: brightness(1);
+  }
+}
+
+@keyframes panel-enter-right {
+  0% {
+    opacity: 0;
+    transform: translateX(22px);
+    filter: brightness(0.3);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: brightness(1);
+  }
+}
+
+/* Border draw-in: border traces from top-left clockwise */
+@keyframes border-draw {
+  0%   { clip-path: inset(0 100% 100% 0); }
+  25%  { clip-path: inset(0 0 100% 0); }
+  50%  { clip-path: inset(0 0 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+
+/* ================================================================
+ * PHASE 4 — Live effects (continuous, low-CPU)
+ * ================================================================ */
+
+/* Scanline — a semi-transparent horizontal bar sweeping top→bottom */
+@keyframes scanline-sweep {
+  0%   { top: -4px; opacity: 0; }
+  5%   { opacity: 1; }
+  95%  { opacity: 0.6; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* LED blink — crisp on/off for status indicators */
+@keyframes led-blink {
+  0%, 49%  { opacity: 1; }
+  50%, 100%{ opacity: 0.15; }
+}
+
+/* LED pulse — softer breathing for "active" LEDs */
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px currentColor; }
+  50%      { opacity: 0.4; box-shadow: none; }
+}
+
+/* Alert pulse ring — expanding circle for high-level alerts */
+@keyframes alert-pulse-ring {
+  0%   { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* Data value count-up shimmer (overlay on numeric text) */
+@keyframes data-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Radar sweep — conic rotation */
+@keyframes radar-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Grid pulse — the background grid gently brightens */
+@keyframes grid-pulse {
+  0%, 100% { opacity: var(--grid-opacity, 0.06); }
+  50%       { opacity: calc(var(--grid-opacity, 0.06) * 2.2); }
+}
+
+/* Glow breathe — panel edge glow cycles */
+@keyframes glow-breathe {
+  0%, 100% { box-shadow: var(--glow-panel); }
+  50%       { box-shadow: var(--glow-panel-active); }
+}
+
+/* Number roll-in — fast counter settle effect */
+@keyframes num-settle {
+  0%   { transform: translateY(-8px); opacity: 0; filter: blur(3px); }
+  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+}
+
+/* Boot text typewriter */
+@keyframes typewriter {
+  from { width: 0; }
+  to   { width: 100%; }
+}
+
+/* Corner bracket draw */
+@keyframes corner-draw-tl {
+  from { clip-path: polygon(0 0, 0 0, 0 0); }
+  to   { clip-path: polygon(0 0, 24px 0, 0 24px); }
+}
+
+/* Status bar slide-in from top */
+@keyframes topbar-slide-in {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Sidebar lamp-light stagger */
+@keyframes nav-lamp-on {
+  0%   { opacity: 0; transform: translateX(-8px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* Notification flash */
+@keyframes notif-flash {
+  0%, 100% { background: var(--signal-alert-dim); }
+  50%       { background: rgba(255, 45, 45, 0.35); }
+}
+
+/* Horizontal data ticker scroll */
+@keyframes ticker-scroll {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(-100%); }
+}
+
+/* ================================================================
+ * STAGGER UTILITY CLASSES
+ * Usage: add .reveal + .reveal-delay-N to any element
+ * The 12-step ladder covers the full 1200ms cascade window
+ * ================================================================ */
+.reveal {
+  animation: panel-enter var(--dur-phase3, 500ms) var(--ease-power-on, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+.reveal-left {
+  animation: panel-enter-left var(--dur-phase3, 500ms) var(--ease-power-on, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+.reveal-right {
+  animation: panel-enter-right var(--dur-phase3, 500ms) var(--ease-power-on, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+/* Phase 3 stagger delays — 700ms base, 80ms steps, 12 slots */
+.reveal-delay-1  { animation-delay: 700ms; }
+.reveal-delay-2  { animation-delay: 780ms; }
+.reveal-delay-3  { animation-delay: 860ms; }
+.reveal-delay-4  { animation-delay: 940ms; }
+.reveal-delay-5  { animation-delay: 1020ms; }
+.reveal-delay-6  { animation-delay: 1100ms; }
+.reveal-delay-7  { animation-delay: 1180ms; }
+.reveal-delay-8  { animation-delay: 1260ms; }
+.reveal-delay-9  { animation-delay: 1340ms; }
+.reveal-delay-10 { animation-delay: 1420ms; }
+.reveal-delay-11 { animation-delay: 1500ms; }
+.reveal-delay-12 { animation-delay: 1580ms; }
+
+/* Fast stagger for sub-items within an already-revealed panel */
+.reveal-fast { animation: panel-enter 300ms var(--ease-power-on, cubic-bezier(0.16, 1, 0.3, 1)) both; }
+.reveal-fast.reveal-delay-1  { animation-delay: calc(700ms + 50ms); }
+.reveal-fast.reveal-delay-2  { animation-delay: calc(700ms + 100ms); }
+.reveal-fast.reveal-delay-3  { animation-delay: calc(700ms + 150ms); }
+.reveal-fast.reveal-delay-4  { animation-delay: calc(700ms + 200ms); }
+
+/* Phase 1 utility — grid background sweep */
+.reveal-grid {
+  animation: grid-sweep-in var(--dur-phase1, 300ms) var(--ease-scan, cubic-bezier(0.4, 0, 0.6, 1)) both;
+  animation-delay: 0ms;
+}
+
+/* Phase 2 utility — basemap/background */
+.reveal-basemap {
+  animation: basemap-reveal var(--dur-phase2, 400ms) linear both;
+  animation-delay: 300ms;
+}
+
+/* Continuous live effects — applied after boot */
+.live-scanline {
+  position: relative;
+  overflow: hidden;
+}
+.live-scanline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--signal-crystal-dim) 30%,
+    rgba(0, 229, 255, 0.25) 50%,
+    var(--signal-crystal-dim) 70%,
+    transparent 100%
+  );
+  animation: scanline-sweep var(--dur-scan, 4000ms) linear infinite;
+  animation-delay: 1400ms;  /* Phase 4 activation */
+  pointer-events: none;
+  z-index: 100;
+  will-change: top;
+}
+
+/* Glow breathe on active panels */
+.live-glow-breathe {
+  animation: glow-breathe 3600ms ease-in-out infinite;
+  animation-delay: 1600ms;
+}
+
+/* LED status — default blink */
+.led {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.led-online  {
+  background: var(--signal-crystal);
+  animation: led-pulse var(--dur-blink, 1200ms) ease-in-out infinite;
+  animation-delay: 1400ms;
+  box-shadow: 0 0 6px var(--signal-crystal);
+}
+.led-alert   {
+  background: var(--signal-alert);
+  animation: led-blink 800ms steps(1, end) infinite;
+  box-shadow: 0 0 6px var(--signal-alert);
+}
+.led-warning {
+  background: var(--signal-lava);
+  animation: led-pulse 1600ms ease-in-out infinite;
+  box-shadow: 0 0 6px var(--signal-lava);
+}
+.led-hazard  {
+  background: var(--signal-hazard);
+  animation: led-pulse 2000ms ease-in-out infinite;
+  box-shadow: 0 0 5px var(--signal-hazard);
+}
+.led-offline {
+  background: var(--text-disabled);
+}

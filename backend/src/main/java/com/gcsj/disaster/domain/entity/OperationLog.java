@@ -9,7 +9,7 @@ import java.time.OffsetDateTime;
 
 @Data
 @Entity
-@Table(name = "sys_operation_log")
+@Table(name = "sys_operation_log", schema = "sys")
 @EntityListeners(AuditingEntityListener.class)
 public class OperationLog {
     @Id
@@ -29,8 +29,6 @@ public class OperationLog {
     private String uri;
     @Column(length = 64)
     private String ip;
-    @Column(columnDefinition = "text")
-    private String params;
     @Column(name = "result_code")
     private Integer resultCode;
     @Column(name = "cost_ms")

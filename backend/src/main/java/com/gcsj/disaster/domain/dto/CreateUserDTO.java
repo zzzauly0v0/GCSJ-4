@@ -27,7 +27,5 @@ public class CreateUserDTO {
     @Email
     private String email;
 
-    private Long orgId;
-
     private Set<Long> roleIds;
 }

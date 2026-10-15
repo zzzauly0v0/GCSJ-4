@@ -149,16 +149,17 @@ onMounted(async () => {
 .card-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--au-border-subtle);
   .head-title {
     display: flex; align-items: center; gap: 8px;
-    font-size: 14px; font-weight: 600; color: var(--text-1);
-    .el-icon { color: var(--primary); }
-    .count { background: var(--bg); padding: 0 8px; border-radius: 10px;
-      font-size: 11px; color: var(--text-2); font-family: 'DIN Alternate', monospace; }
+    font-size: 14px; font-weight: 600; color: var(--au-text-strong);
+    .el-icon { color: var(--au-text-strong); }
+    .count { background: var(--au-bg-subtle); padding: 0 8px; border-radius: 16px;
+      font-size: 11px; color: var(--au-text-secondary); font-family: var(--au-font-num); }
     .role-tag {
-      background: rgba(37, 99, 235, 0.08); color: var(--primary);
-      padding: 2px 10px; border-radius: 10px; font-size: 12px;
+      background: var(--au-bg-subtle); color: var(--au-text-strong);
+      border: 1px solid var(--au-border-subtle);
+      padding: 2px 10px; border-radius: 16px; font-size: 12px;
     }
   }
 }
@@ -169,36 +170,52 @@ onMounted(async () => {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px;
   margin-bottom: 4px;
-  border-radius: 6px;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.15s;
-  &:hover { background: var(--bg); }
+  &:hover { background: rgb(248, 249, 252); }
   &.active {
-    background: rgba(37, 99, 235, 0.06);
-    .role-icon { background: var(--primary); color: #fff; }
+    background: var(--au-bg-subtle);
+    .role-icon { background: #3C4043; color: #fff; }
   }
   .role-icon {
-    width: 36px; height: 36px; border-radius: 8px;
-    background: var(--bg);
-    color: var(--primary);
+    width: 36px; height: 36px; border-radius: 16px;
+    background: rgb(248, 249, 252);
+    color: var(--au-text-strong);
     display: flex; align-items: center; justify-content: center;
     font-size: 18px;
     flex-shrink: 0;
     transition: all 0.15s;
   }
   .role-body { flex: 1; min-width: 0; }
-  .role-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
-  .role-code { font-size: 11px; color: var(--text-3); font-family: 'DIN Alternate', monospace; margin-top: 2px; }
+  .role-name { font-size: 13px; font-weight: 600; color: var(--au-text-strong); }
+  .role-code { font-size: 11px; color: var(--au-text-secondary); font-family: var(--au-font-num); margin-top: 2px; }
   .role-actions { opacity: 0; transition: opacity 0.15s; }
   &:hover .role-actions { opacity: 1; }
 }
 
 .permission-panel { display: flex; flex-direction: column; }
 .perm-body { flex: 1; padding: 16px 20px; display: flex; flex-direction: column; }
-.perm-tip { font-size: 12px; color: var(--text-3); margin-bottom: 12px;
-  background: rgba(56, 189, 248, 0.08); padding: 8px 12px; border-radius: 4px;
-  border-left: 3px solid #38BDF8;
+.perm-tip { font-size: 12px; color: var(--au-text-secondary); margin-bottom: 12px;
+  background: rgb(248, 249, 252); padding: 8px 12px; border-radius: 16px;
+  border-left: 3px solid var(--au-border-base);
 }
 .perm-tree { flex: 1; overflow-y: auto; }
-.perm-actions { padding-top: 12px; border-top: 1px dashed var(--border); display: flex; justify-content: flex-end; }
+.perm-actions { padding-top: 12px; border-top: 1px dashed var(--au-border-subtle); display: flex; justify-content: flex-end; }
+
+/* ============ 移动端适配 ============ */
+@media (max-width: 768px) {
+  .page { padding: 10px; }
+  .layout-2col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+  .role-list { max-height: 240px; }
+  .role-items { max-height: 200px; }
+  .role-item .role-actions { opacity: 1; }
+  .perm-body { padding: 12px; }
+  .card-head { padding: 12px; }
+}
 </style>

@@ -15,7 +15,6 @@ public class UpdateUserDTO {
     private String phone;
     @Email
     private String email;
-    private Long orgId;
     private Short status;
     private Set<Long> roleIds;
 }

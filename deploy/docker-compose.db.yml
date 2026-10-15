@@ -25,6 +25,9 @@ services:
       - gcsj-pgdata:/var/lib/postgresql/data
       # 仅在数据卷为空 (首次启动) 时执行, 自动建表 + 灌种子数据
       - ../data/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ../data/02_sichuan_schema.sql:/docker-entrypoint-initdb.d/02_sichuan_schema.sql:ro
+      - ../data/03_gis_weather_schema.sql:/docker-entrypoint-initdb.d/03_gis_weather_schema.sql:ro
+      - ../data/04_disaster_eval_schema.sql:/docker-entrypoint-initdb.d/04_disaster_eval_schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gcsj -d gcsj"]
       interval: 5s
@@ -32,5 +35,27 @@ services:
       retries: 20
       start_period: 10s
 
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.24.2
+    container_name: gcsj-geoserver
+    restart: unless-stopped
+    environment:
+      GEOSERVER_ADMIN_USER: admin
+      GEOSERVER_ADMIN_PASSWORD: gcsj123
+      INSTALL_EXTENSIONS: "true"
+      STABLE_EXTENSIONS: "ysld,wps"
+    ports:
+      - "8600:8080"
+    volumes:
+      - gcsj-gsdata:/opt/geoserver_data
+      - ../gis/styles:/opt/geoserver_data/styles
+    networks: [gcsj-net]
+
+
+networks:
+  gcsj-net:
+    driver: bridge
+
 volumes:
   gcsj-pgdata:
+  gcsj-gsdata:

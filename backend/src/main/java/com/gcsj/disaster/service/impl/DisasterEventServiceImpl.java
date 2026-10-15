@@ -38,6 +38,7 @@ public class DisasterEventServiceImpl implements IDisasterEventService {
     public DisasterEventVO create(CreateDisasterEventDTO dto) {
         DisasterEvent d = converter.fromCreate(dto);
         d.setCode(genCode());
+        if (dto.getStatus() != null) d.setStatus(dto.getStatus());
         SecurityContextUtil.AuthUser u = SecurityContextUtil.currentOrNull();
         if (u != null) d.setReporterId(u.userId());
         repository.save(d);
@@ -60,8 +61,35 @@ public class DisasterEventServiceImpl implements IDisasterEventService {
         }
         d.setOccurredAt(dto.getOccurredAt());
         d.setDescription(dto.getDescription());
+        if (dto.getStatus() != null) {
+            d.setStatus(dto.getStatus());
+            if (dto.getStatus() == 3 && d.getEndAt() == null) {
+                d.setEndAt(dto.getEndAt() != null ? dto.getEndAt() : OffsetDateTime.now());
+            }
+        }
         repository.save(d);
         return converter.toVO(d);
+    }
+
+    @Override
+    @Transactional
+    public DisasterEventVO changeStatus(Long id, Short status) {
+        if (status == null || status < 1 || status > 3) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "状态必须为 1/2/3");
+        }
+        DisasterEvent d = repository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DISASTER_EVENT_NOT_FOUND));
+        d.setStatus(status);
+        if (status == 3 && d.getEndAt() == null) {
+            d.setEndAt(OffsetDateTime.now());
+        }
+        if (status != 3) {
+            d.setEndAt(null);
+        }
+        repository.save(d);
+        DisasterEventVO vo = converter.toVO(d);
+        messaging.convertAndSend("/topic/disasters", vo);
+        return vo;
     }
 
     @Override
@@ -80,12 +108,13 @@ public class DisasterEventServiceImpl implements IDisasterEventService {
     }
 
     @Override
-    public Page<DisasterEventVO> page(Short level, String type, Pageable pageable) {
+    public Page<DisasterEventVO> page(Short level, String type, Short status, Pageable pageable) {
         Specification<DisasterEvent> spec = (root, q, cb) -> {
             List<Predicate> ps = new ArrayList<>();
             ps.add(cb.isFalse(root.get("deleted")));
             if (level != null) ps.add(cb.equal(root.get("level"), level));
             if (type != null && !type.isBlank()) ps.add(cb.equal(root.get("type"), type));
+            if (status != null) ps.add(cb.equal(root.get("status"), status));
             return cb.and(ps.toArray(new Predicate[0]));
         };
         return repository.findAll(spec, pageable).map(converter::toVO);

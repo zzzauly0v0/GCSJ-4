@@ -17,6 +17,8 @@ public class CreateLayerDTO {
     private String workspace;
     private String layerName;
     private String style;
+    /** PostGIS 表名（仅用于 GeoServer 自动发布时传入，不入库） */
+    private String pgTable;
     private Boolean visible = true;
     private Integer zIndex = 0;
     private String description;

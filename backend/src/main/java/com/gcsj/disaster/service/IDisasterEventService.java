@@ -11,9 +11,10 @@ import java.util.Map;
 public interface IDisasterEventService {
     DisasterEventVO create(CreateDisasterEventDTO dto);
     DisasterEventVO update(Long id, CreateDisasterEventDTO dto);
+    DisasterEventVO changeStatus(Long id, Short status);
     void deleteById(Long id);
     DisasterEventVO getById(Long id);
-    Page<DisasterEventVO> page(Short level, String type, Pageable pageable);
+    Page<DisasterEventVO> page(Short level, String type, Short status, Pageable pageable);
     List<DisasterEventVO> latest(int limit);
     Map<String, Object> asGeoJson();
 }
